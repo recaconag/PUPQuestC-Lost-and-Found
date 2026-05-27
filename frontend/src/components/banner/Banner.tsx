@@ -6,31 +6,31 @@ import { useUserVerification } from "../../auth/auth";
 
 const slides = [
   {
-    eyebrow: "Lost & Found · PUPQC Campus",
-    title: "Find What\nMatters Most",
-    titleAccent: "Matters Most",
+    eyebrow: "PUPQC LOST & FOUND",
+    title: "Lost Something?",
+    titleAccent: "",
     description:
-      "A centralized, intelligent platform for the Polytechnic University of the Philippines QC. Report lost belongings, discover found items, and reunite with your possessions — fast.",
+      "Report missing items and check found belongings within the PUPQC campus.",
     primary: { text: "Report Lost Item", href: "/reportlostItem", requiresAuth: true },
     secondary: { text: "Browse Found Items", href: "/found-items", requiresAuth: false },
   },
   {
-    eyebrow: "Community · Help Others",
-    title: "Turn Found Into\nReunited",
-    titleAccent: "Reunited",
+    eyebrow: "ITEM REPORT TRACKING",
+    title: "Track Your Reports",
+    titleAccent: "",
     description:
-      "Found something on campus? One report can change someone's day. PUPQuestC connects finders with owners across the entire PUPQC community.",
-    primary: { text: "Report Found Item", href: "/reportFoundItem", requiresAuth: true },
-    secondary: { text: "Browse Lost Items", href: "/lostItems", requiresAuth: false },
+      "Check updates on your submitted lost or found item reports anytime.",
+    primary: { text: "View Lost Reports", href: "/dashboard/myLostItems", requiresAuth: true },
+    secondary: { text: "View Found Reports", href: "/dashboard/myFoundItems", requiresAuth: true },
   },
   {
-    eyebrow: "Tracking · Stay Updated",
-    title: "Every Claim,\nEvery Update",
-    titleAccent: "Every Update",
+    eyebrow: "CAMPUS LOST & FOUND",
+    title: "Helping Students Recover Items",
+    titleAccent: "",
     description:
-      "Track your reports in real-time. Receive updates the moment your item status changes. Full transparency from submission to resolution.",
-    primary: { text: "My Found Items", href: "/dashboard/myFoundItems", requiresAuth: true },
-    secondary: { text: "My Lost Items", href: "/dashboard/myLostItems", requiresAuth: true },
+      "A simple system for reporting, browsing, and claiming lost belongings in PUPQC.",
+    primary: { text: "Get Started", href: "/lostItems", requiresAuth: false },
+    secondary: { text: "Learn More", href: "/#aboutUs", requiresAuth: false },
   },
 ];
 
@@ -158,11 +158,10 @@ const Banner = () => {
               key={i}
               onClick={() => setCurrentSlide(i)}
               aria-label={`Go to slide ${i + 1}`}
-              className={`rounded-full transition-all duration-200 ${
-                i === currentSlide
-                  ? "w-6 h-2 bg-yellow-500"
-                  : "w-2 h-2 bg-gray-600 hover:bg-gray-400"
-              }`}
+              className={`rounded-full transition-all duration-200 ${i === currentSlide
+                ? "w-6 h-2 bg-yellow-500"
+                : "w-2 h-2 bg-gray-600 hover:bg-gray-400"
+                }`}
             />
           ))}
         </div>
