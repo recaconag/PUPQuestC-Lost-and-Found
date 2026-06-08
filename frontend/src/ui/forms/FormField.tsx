@@ -7,7 +7,8 @@ type Props<TFieldValues extends FieldValues> = {
   label: string;
   errors: FieldErrors<TFieldValues>;
   hint?: string;
-  children: (opts: { id: string; hasError: boolean; error?: FieldError }) => ReactNode;
+  required?: boolean;
+  children: (opts: { id: string; hasError: boolean; error?: FieldError; ariaDescribedBy: string }) => ReactNode;
 };
 
 export function FormField<TFieldValues extends FieldValues>({
@@ -15,23 +16,32 @@ export function FormField<TFieldValues extends FieldValues>({
   label,
   errors,
   hint,
+  required = false,
   children,
 }: Props<TFieldValues>) {
   const id = String(name);
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
   const error = errors[name] as FieldError | undefined;
   const hasError = Boolean(error?.message);
+
+  const ariaDescribedBy = [
+    hint && !hasError ? hintId : null,
+    hasError ? errorId : null,
+  ].filter(Boolean).join(" ");
 
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="block text-sm font-semibold text-gray-300">
         {label}
+        {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
       </label>
-      {children({ id, hasError, error })}
+      {children({ id, hasError, error, ariaDescribedBy })}
       {hint && !hasError && (
-        <p className="text-xs text-gray-400">{hint}</p>
+        <p id={hintId} className="text-xs text-gray-400">{hint}</p>
       )}
       {hasError && (
-        <p className={cx("text-sm font-medium", "text-red-500")} role="alert">
+        <p id={errorId} className={cx("text-sm font-medium", "text-red-500")} role="alert">
           {String(error?.message)}
         </p>
       )}

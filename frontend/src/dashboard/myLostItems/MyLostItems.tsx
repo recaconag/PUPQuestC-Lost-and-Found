@@ -24,6 +24,8 @@ import {
   type EditLostItemValues,
 } from "../../ui/forms/schemas";
 import { useZodForm } from "../../ui/forms/useZodForm";
+import { formatDate } from "../../utils/formatDate";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 const MyLostItems = () => {
   const { data: myLostItems, isLoading } = useGetMyLostItemQuery({});
@@ -331,7 +333,7 @@ const MyLostItems = () => {
                         <div className="flex items-center">
                           <FaCalendarAlt className="mr-2 text-gray-400" />
                           <span>
-                            {myLostItem?.date ? myLostItem.date.split("T")[0] : "No date reported"}
+                            {formatDate(myLostItem?.date) || "No date reported"}
                           </span>
                         </div>
                       </td>
@@ -344,6 +346,7 @@ const MyLostItems = () => {
                               onClick={() => openModal(myLostItem)}
                               className="p-2 text-yellow-500 hover:bg-yellow-500 hover:text-white rounded-lg transition-colors duration-200 hover:scale-110"
                               title="Edit item"
+                              aria-label="Edit item"
                             >
                               <FaEdit />
                             </button>
@@ -352,6 +355,7 @@ const MyLostItems = () => {
                             onClick={() => handleDeleteClick(myLostItem)}
                             className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors duration-200 hover:scale-110"
                             title="Delete item"
+                            aria-label="Delete item"
                           >
                             <FaTrash />
                           </button>
@@ -368,7 +372,7 @@ const MyLostItems = () => {
 
       {/* Modal */}
       <Modal show={isOpen} size="md" popup={true} onClose={closeModal}>
-        <div className="glass-card rounded-xl">
+        <div ref={useFocusTrap(true)} className="glass-card rounded-xl">
           <ModalHeader className="border-b border-gray-700">
             <h3 className="text-xl font-medium text-white">Edit Lost Item</h3>
           </ModalHeader>
@@ -380,12 +384,15 @@ const MyLostItems = () => {
                     name="lostItemName"
                     label="Item name"
                     errors={errors}
+                    required
                   >
-                    {({ id, hasError }) => (
+                    {({ id, hasError, ariaDescribedBy }) => (
                       <PupInput
                         id={id}
                         {...register("lostItemName")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="mt-1"
                       />
                     )}
@@ -395,12 +402,15 @@ const MyLostItems = () => {
                     name="description"
                     label="Description"
                     errors={errors}
+                    required
                   >
-                    {({ id, hasError }) => (
+                    {({ id, hasError, ariaDescribedBy }) => (
                       <PupInput
                         id={id}
                         {...register("description")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="mt-1"
                       />
                     )}
@@ -410,12 +420,15 @@ const MyLostItems = () => {
                     name="location"
                     label="Location"
                     errors={errors}
+                    required
                   >
-                    {({ id, hasError }) => (
+                    {({ id, hasError, ariaDescribedBy }) => (
                       <PupInput
                         id={id}
                         {...register("location")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="mt-1"
                       />
                     )}
@@ -425,13 +438,16 @@ const MyLostItems = () => {
                     name="date"
                     label="Date lost"
                     errors={errors}
+                    required
                   >
-                    {({ id, hasError }) => (
+                    {({ id, hasError, ariaDescribedBy }) => (
                       <PupInput
                         type="date"
                         id={id}
                         {...register("date")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="mt-1"
                       />
                     )}
@@ -510,7 +526,7 @@ const MyLostItems = () => {
                         </p>
                         <div className="flex justify-between text-sm text-gray-500">
                           <span>Location: {itemToDelete?.location}</span>
-                          <span>Date: {itemToDelete?.date?.split("T")[0]}</span>
+                          <span>Date: {formatDate(itemToDelete?.date)}</span>
                         </div>
                       </div>
                     </div>

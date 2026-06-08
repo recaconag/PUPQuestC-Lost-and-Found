@@ -1,7 +1,7 @@
 import { FaFacebook, FaEnvelope, FaPhone } from "react-icons/fa";
 import { Link } from "react-router-dom";
 
-const OFFICIAL_FB    = "https://www.facebook.com/ThePUPQCCampusOfficial";
+const OFFICIAL_FB = "https://www.facebook.com/ThePUPQCCampusOfficial";
 const OFFICIAL_EMAIL = "quezoncity@pup.edu.ph";
 const OFFICIAL_PHONE = "282878204";
 
@@ -51,7 +51,7 @@ const Footers = () => {
                   className="flex items-center gap-2 hover:text-yellow-500 transition-all duration-200"
                 >
                   <FaFacebook className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>The PUP QC Campus Official</span>
+                  <span>PUPQC Official Page</span>
                 </a>
               </li>
               <li>
@@ -77,15 +77,15 @@ const Footers = () => {
                   to="/found-items"
                   className="hover:text-yellow-500 transition-colors duration-200"
                 >
-                  Found Items
+                  Browse Found Items
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/lostItems"
+                  to="/reportlostItem"
                   className="hover:text-yellow-500 transition-colors duration-200"
                 >
-                  Lost Items
+                  Report Lost Item
                 </Link>
               </li>
             </ul>
@@ -152,12 +152,12 @@ const Footers = () => {
               className="flex items-center gap-2 text-gray-400 hover:text-yellow-500 text-sm transition-all duration-200"
             >
               <FaFacebook className="w-3.5 h-3.5" />
-              The PUP QC Campus Official
+              PUPQC Official Page
             </a>
           </div>
 
           <span className="text-xs text-gray-500">
-            2026 PUPQuestC — PUPQC Lost &amp; Found Management. All Rights Reserved.
+            2026 PUPQuestC — PUPQC Lost and Found System.
           </span>
 
         </div>

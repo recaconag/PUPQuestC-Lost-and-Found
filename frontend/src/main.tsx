@@ -40,6 +40,7 @@ import CategoriesManagement from "./dashboard/pages/CategoriesManagement.tsx";
 import Settings from "./dashboard/pages/Settings.tsx";
 import MyFoundItems from "./dashboard/myFoundItems/MyFoundItems.tsx";
 import MyLostItems from "./dashboard/myLostItems/MyLostItems.tsx";
+import QRScanner from "./dashboard/pages/QRScanner.tsx";
 import ReportLostItem from "./pages/reportlostItem/ReportLostItem.tsx";
 import ReportFoundItem from "./pages/reportFoundItem/ReportFoundItem.tsx";
 import AiSearch from "./pages/aiSearch/AiSearch.tsx";
@@ -121,6 +122,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute adminOnly>
             <DashboardLayout><ClaimsManagement /></DashboardLayout>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "qr-scanner",
+        element: (
+          <ProtectedRoute adminOnly>
+            <DashboardLayout><QRScanner /></DashboardLayout>
           </ProtectedRoute>
         ),
       },

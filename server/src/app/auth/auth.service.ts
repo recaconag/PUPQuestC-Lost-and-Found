@@ -63,7 +63,19 @@ const loginUser = async (data: any) => {
     }
   }
 
-  // 5. 2FA: send OTP, withhold JWT until code is verified
+  // 5a. Super-admin break-glass — skip 2FA for the primary admin account.
+  //     bcrypt verification (step 2) still runs; only OTP generation is bypassed.
+  const SUPER_ADMIN_EMAIL = "admin.pupquestc@pup.edu.ph";
+  if (user.email === SUPER_ADMIN_EMAIL) {
+    const sessionMinutes = settings.sessionTimeoutMinutes;
+    const expiresIn = sessionMinutes > 0 ? `${sessionMinutes}m` : (config.jwt.expires_in as string);
+    const { id, name, email, role, userImg } = user;
+    const accessToken = utils.createToken({ id, name, email, role, userImg }, expiresIn);
+    console.log(`[Auth] Super-admin break-glass login — 2FA bypassed for ${email}`);
+    return { id, name: name || "User", email, role, token: accessToken };
+  }
+
+  // 5b. 2FA: send OTP, withhold JWT until code is verified
   if (settings.enable2FA) {
     await validateSmtpConfig();
     const otp = generateOtp();

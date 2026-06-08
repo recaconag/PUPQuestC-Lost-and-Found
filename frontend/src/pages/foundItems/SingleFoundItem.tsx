@@ -5,8 +5,8 @@ import {
 import EditFoundItemModal from "./EditFoundItemModal";
 import { Spinner } from "flowbite-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
 import { Link, useParams, useNavigate } from "react-router-dom";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import {
   FaArrowLeft,
   FaCalendarAlt,
@@ -18,6 +18,13 @@ import {
   FaLock,
 } from "react-icons/fa";
 import { useUserVerification } from "../../auth/auth";
+import { FormField } from "../../ui/forms/FormField";
+import { createClaimSchema, type CreateClaimValues } from "../../ui/forms/schemas";
+import { useZodForm } from "../../ui/forms/useZodForm";
+import { PupInput } from "../../ui/PupInput";
+import { PupTextarea } from "../../ui/PupTextarea";
+import { PupButton } from "../../ui/PupButton";
+import { formatDate } from "../../utils/formatDate";
 
 const SingleFoundItem = () => {
   const { foundItem: foundItemParam } = useParams<{ foundItem: string }>();
@@ -56,14 +63,16 @@ const SingleFoundItem = () => {
   const [createClaim, { isLoading: claimLoading }] = useCreateClaimMutation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
-  const [isEditModalOpen,  setIsEditModalOpen]  = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm();
+  } = useZodForm<typeof createClaimSchema, CreateClaimValues>(createClaimSchema, {
+    defaultValues: { lostDate: "", distinguishingFeatures: "" },
+  });
 
   const handleClaimModal = () => {
     if (!isLoggedIn) {
@@ -73,7 +82,7 @@ const SingleFoundItem = () => {
     setIsClaimModalOpen(true);
   };
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: CreateClaimValues) => {
     setIsSubmitting(true);
 
     try {
@@ -205,12 +214,7 @@ const SingleFoundItem = () => {
                     <span className="text-xs font-medium uppercase tracking-wide">Date Found</span>
                   </div>
                   <p className="text-gray-200 text-sm">
-                    {foundItemData?.date
-                      ? new Date(foundItemData.date).toLocaleDateString(
-                          "en-US",
-                          { year: "numeric", month: "long", day: "numeric" }
-                        )
-                      : "Date not specified"}
+                    {formatDate(foundItemData?.date) || "Date not specified"}
                   </p>
                 </div>
 
@@ -282,11 +286,10 @@ const SingleFoundItem = () => {
                   <button
                     onClick={handleClaimModal}
                     title={!isLoggedIn ? "Sign in to perform this action" : undefined}
-                    className={`w-full flex items-center justify-center gap-2 font-semibold py-3 px-6 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1 focus:ring-offset-gray-900 ${
-                      isLoggedIn
-                        ? "bg-red-800 hover:bg-red-700 text-white"
-                        : "bg-gray-700/80 hover:bg-gray-600/80 text-gray-300 border border-gray-600/50"
-                    }`}
+                    className={`w-full flex items-center justify-center gap-2 font-semibold py-3 px-6 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1 focus:ring-offset-gray-900 ${isLoggedIn
+                      ? "bg-red-800 hover:bg-red-700 text-white"
+                      : "bg-gray-700/80 hover:bg-gray-600/80 text-gray-300 border border-gray-600/50"
+                      }`}
                   >
                     {!isLoggedIn && <FaLock className="w-3.5 h-3.5 text-gray-400" />}
                     {isLoggedIn ? "Submit a Claim" : "Sign in to Claim"}
@@ -310,13 +313,14 @@ const SingleFoundItem = () => {
       {/* Custom Claim Modal */}
       {isClaimModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-fade-in">
-          <div className="relative w-full max-w-md glass-card rounded-xl animate-scale-in">
+          <div ref={useFocusTrap(true)} className="relative w-full max-w-md glass-card rounded-xl animate-scale-in">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
               <h3 className="text-xl font-bold gold-text">Claim Process</h3>
               <button
                 onClick={() => setIsClaimModalOpen(false)}
                 className="text-gray-400 hover:text-white transition-colors duration-200 p-1"
+                aria-label="Close modal"
               >
                 <FaTimes className="w-5 h-5" />
               </button>
@@ -330,46 +334,34 @@ const SingleFoundItem = () => {
               </p>
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                <div>
-                  <label className="block mb-2 text-sm font-semibold text-white">
-                    When did you lose this item? *
-                  </label>
-                  <input
-                    type="date"
-                    {...register("lostDate", {
-                      required: "Lost date is required",
-                    })}
-                    className="w-full p-3 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 focus:border-yellow-500 transition-all duration-200"
-                  />
-                  {errors.lostDate && (
-                    <p className="text-red-400 text-sm mt-1">
-                      {errors.lostDate.message as string}
-                    </p>
+                <FormField<CreateClaimValues> name="lostDate" label="When did you lose this item?" errors={errors} required>
+                  {({ id, hasError, ariaDescribedBy }) => (
+                    <input
+                      id={id}
+                      type="date"
+                      aria-invalid={hasError ? "true" : undefined}
+                      aria-describedby={ariaDescribedBy}
+                      aria-required="true"
+                      {...register("lostDate")}
+                      className={`w-full p-3 bg-gray-800/50 border ${hasError ? "border-red-600/70" : "border-red-900/40 hover:border-red-800/60"} text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200`}
+                    />
                   )}
-                </div>
+                </FormField>
 
-                <div>
-                  <label className="block mb-2 text-sm font-semibold text-white">
-                    Distinguishing Features *
-                  </label>
-                  <textarea
-                    rows={4}
-                    placeholder="Describe unique features, colors, brands, scratches, or any other identifying characteristics..."
-                    {...register("distinguishingFeatures", {
-                      required: "Distinguishing features are required",
-                      minLength: {
-                        value: 10,
-                        message: "Please provide at least 10 characters",
-                      },
-                    })}
-                    className="w-full p-3 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 focus:border-yellow-500 transition-all duration-200 resize-none"
-                  />
-                  {errors.distinguishingFeatures && (
-                    <p className="text-red-400 text-sm mt-1">
-                      {errors.distinguishingFeatures.message as string}
-                    </p>
+                <FormField<CreateClaimValues> name="distinguishingFeatures" label="Distinguishing Features" errors={errors} required>
+                  {({ id, hasError, ariaDescribedBy }) => (
+                    <textarea
+                      id={id}
+                      rows={4}
+                      aria-invalid={hasError ? "true" : undefined}
+                      aria-describedby={ariaDescribedBy}
+                      aria-required="true"
+                      placeholder="Describe unique features, colors, brands, scratches, or any other identifying characteristics..."
+                      {...register("distinguishingFeatures")}
+                      className={`w-full p-3 bg-gray-800/50 border ${hasError ? "border-red-600/70" : "border-red-900/40 hover:border-red-800/60"} text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 resize-none`}
+                    />
                   )}
-                </div>
+                </FormField>
 
                 <div className="flex space-x-4 pt-4">
                   <button
@@ -379,11 +371,7 @@ const SingleFoundItem = () => {
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || claimLoading}
-                    className="flex-1 px-4 py-3 bg-red-800 hover:bg-red-700 text-white rounded-lg transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
+                  <PupButton type="submit" disabled={isSubmitting || claimLoading} className="flex-1 px-4 py-3">
                     {isSubmitting || claimLoading ? (
                       <div className="flex items-center justify-center">
                         <Spinner size="sm" className="mr-2" />
@@ -392,7 +380,7 @@ const SingleFoundItem = () => {
                     ) : (
                       "Submit Claim"
                     )}
-                  </button>
+                  </PupButton>
                 </div>
               </form>
             </div>

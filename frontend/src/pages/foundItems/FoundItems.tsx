@@ -3,6 +3,7 @@ import { useGetFoundItemsQuery } from "../../redux/api/api";
 import { Link } from "react-router-dom";
 import { FaSearch, FaFilter, FaCalendarAlt, FaMapMarkerAlt } from "react-icons/fa";
 import PaginationNav from "../../components/shared/PaginationNav";
+import { formatDate } from "../../utils/formatDate";
 
 const FoundItemsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -104,7 +105,7 @@ const FoundItemsPage = () => {
             Found Items
           </h2>
           <p className="text-sm text-gray-400">
-            Discover items that have been found and reported by our community
+            Browse reported found items within the PUPQC campus.
           </p>
         </div>
 
@@ -173,9 +174,8 @@ const FoundItemsPage = () => {
         <div className="mb-6">
           <p className="text-center font-medium text-gray-400">
             {searchTerm
-              ? `Search results for "${searchTerm}" - ${
-                  foundItems?.data?.length || 0
-                } items found`
+              ? `Search results for "${searchTerm}" - ${foundItems?.data?.length || 0
+              } items found`
               : `Showing ${foundItems?.data?.length || 0} found items`}
           </p>
         </div>
@@ -252,9 +252,7 @@ const FoundItemsPage = () => {
                       <div className="flex items-center gap-2 text-sm">
                         <FaCalendarAlt className="text-gray-500 flex-shrink-0 w-3 h-3" />
                         <span className="text-gray-300">
-                          {foundItem?.date
-                            ? foundItem?.date?.split("T")[0]
-                            : foundItem?.createdAt?.split("T")[0]}
+                          {formatDate(foundItem?.date) || formatDate(foundItem?.createdAt) || "No date"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
@@ -266,7 +264,7 @@ const FoundItemsPage = () => {
                     </div>
 
                     <Link to={`/found-items/${foundItem?.id}`} className="block">
-                     <button className="w-full bg-gradient-to-br from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1 focus:ring-offset-gray-800 text-sm shadow-[0_2px_8px_rgba(128,0,0,0.35)] hover:shadow-[0_4px_14px_rgba(128,0,0,0.5)]">
+                      <button className="w-full bg-gradient-to-br from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1 focus:ring-offset-gray-800 text-sm shadow-[0_2px_8px_rgba(128,0,0,0.35)] hover:shadow-[0_4px_14px_rgba(128,0,0,0.5)]">
                         View Details
                       </button>
                     </Link>

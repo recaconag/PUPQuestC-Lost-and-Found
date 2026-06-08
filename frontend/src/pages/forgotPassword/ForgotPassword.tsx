@@ -4,26 +4,32 @@ import { MdEmail } from "react-icons/md";
 import { FaArrowLeft, FaLock } from "react-icons/fa";
 import { Spinner } from "flowbite-react";
 import { useForgotPasswordMutation } from "../../redux/api/api";
+import { FormField } from "../../ui/forms/FormField";
+import { forgotPasswordSchema, type ForgotPasswordValues } from "../../ui/forms/schemas";
+import { useZodForm } from "../../ui/forms/useZodForm";
+import { PupInput } from "../../ui/PupInput";
+import { PupButton } from "../../ui/PupButton";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [forgotPassword, { isLoading }] = useForgotPasswordMutation();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    const trimmed = email.trim();
-    if (!trimmed) {
-      setError("Please enter your institutional email address.");
-      return;
-    }
+  const {
+    handleSubmit,
+    register,
+    formState: { errors },
+  } = useZodForm<typeof forgotPasswordSchema, ForgotPasswordValues>(forgotPasswordSchema, {
+    defaultValues: { email: "" },
+  });
+
+  const onSubmit = async (data: ForgotPasswordValues) => {
+    setSubmitError(null);
     try {
-      await forgotPassword({ email: trimmed }).unwrap();
-      navigate(`/recovery-otp?email=${encodeURIComponent(trimmed)}`);
+      await forgotPassword({ email: data.email }).unwrap();
+      navigate(`/recovery-otp?email=${encodeURIComponent(data.email)}`);
     } catch (err: any) {
-      setError(err?.data?.message ?? "Something went wrong. Please try again.");
+      setSubmitError(err?.data?.message ?? "Something went wrong. Please try again.");
     }
   };
 
@@ -45,38 +51,39 @@ const ForgotPassword = () => {
 
           {/* Body */}
           <div className="px-8 py-8">
-            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
 
-              <div className="space-y-1">
-                <label htmlFor="email" className="block text-sm font-semibold text-gray-300">
-                  Institutional Email
-                </label>
-                <div className="relative">
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError(null); }}
-                    placeholder="name@iskolarngbayan.pup.edu.ph"
-                    autoComplete="email"
-                    className="w-full rounded-lg border bg-gray-800/50 px-4 py-3 pr-10 text-white placeholder:text-gray-400 backdrop-blur-sm border-red-900/40 hover:border-red-800/60 focus-visible:border-yellow-500/60 outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-yellow-500/30"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <MdEmail className="w-4.5 h-4.5 text-gray-500" />
+              <FormField<ForgotPasswordValues> name="email" label="Institutional Email" errors={errors} required>
+                {({ id, hasError, ariaDescribedBy }) => (
+                  <div className="relative">
+                    <PupInput
+                      id={id}
+                      type="email"
+                      placeholder="name@iskolarngbayan.pup.edu.ph"
+                      autoComplete="email"
+                      {...register("email")}
+                      hasError={hasError}
+                      ariaDescribedBy={ariaDescribedBy}
+                      aria-required="true"
+                      className="pr-10"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <MdEmail className="w-4.5 h-4.5 text-gray-500" />
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
+              </FormField>
 
-              {error && (
+              {submitError && (
                 <p className="text-sm text-red-400 text-center flex items-center justify-center gap-1.5" role="alert">
-                  <span aria-hidden>✕</span> {error}
+                  <span aria-hidden>✕</span> {submitError}
                 </p>
               )}
 
-              <button
+              <PupButton
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-600 hover:to-red-700 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 border border-red-600/50 shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-500/70"
+                className="w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -84,7 +91,7 @@ const ForgotPassword = () => {
                     Sending recovery code…
                   </span>
                 ) : "Send Recovery Code"}
-              </button>
+              </PupButton>
 
               <div className="pt-3 border-t border-gray-700/50 text-center">
                 <Link

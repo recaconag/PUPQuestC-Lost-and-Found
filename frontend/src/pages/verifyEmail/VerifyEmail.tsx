@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useVerifyOtpMutation, useResendOtpMutation } from "../../redux/api/api";
 import { setAccessToken } from "../../auth/auth";
 import { FaCheckCircle, FaEnvelope, FaArrowLeft } from "react-icons/fa";
+import { verifyEmailOtpSchema, type VerifyEmailOtpValues } from "../../ui/forms/schemas";
+import { useZodForm } from "../../ui/forms/useZodForm";
 
 const RESEND_COOLDOWN = 60;
 
@@ -12,7 +14,6 @@ const VerifyEmail = () => {
   const email = searchParams.get("email") ?? "";
 
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
-  const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
@@ -20,6 +21,14 @@ const VerifyEmail = () => {
 
   const [verifyOtp, { isLoading: isVerifying }] = useVerifyOtpMutation();
   const [resendOtp, { isLoading: isResending }] = useResendOtpMutation();
+
+  const {
+    handleSubmit: handleFormSubmit,
+    setValue,
+    formState: { errors },
+  } = useZodForm<typeof verifyEmailOtpSchema, VerifyEmailOtpValues>(verifyEmailOtpSchema, {
+    defaultValues: { otp: "" },
+  });
 
   /* ── focus first input on mount ── */
   useEffect(() => {
@@ -38,14 +47,12 @@ const VerifyEmail = () => {
     if (!email) navigate("/register", { replace: true });
   }, [email, navigate]);
 
-  const otp = digits.join("");
-
   const handleDigitChange = (index: number, value: string) => {
     const sanitized = value.replace(/\D/g, "").slice(-1);
     const next = [...digits];
     next[index] = sanitized;
     setDigits(next);
-    setError(null);
+    setValue("otp", next.join(""), { shouldValidate: true });
     if (sanitized && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -78,37 +85,31 @@ const VerifyEmail = () => {
     inputRefs.current[focusIndex]?.focus();
   };
 
-  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (otp.length < 6) {
-      setError("Please enter all 6 digits of your verification code.");
-      return;
-    }
-    setError(null);
+  const onSubmit = useCallback(async (data: VerifyEmailOtpValues) => {
     try {
-      const res: any = await verifyOtp({ email, otp }).unwrap();
+      const res: any = await verifyOtp({ email, otp: data.otp }).unwrap();
       if (res?.data?.token) {
         setAccessToken(res.data.token);
       }
       setIsSuccess(true);
       setTimeout(() => navigate("/dashboard", { replace: true }), 2200);
     } catch (err: any) {
-      setError(err?.data?.message ?? "Verification failed. Please try again.");
       setDigits(["", "", "", "", "", ""]);
+      setValue("otp", "", { shouldValidate: true });
       setTimeout(() => inputRefs.current[0]?.focus(), 50);
     }
-  }, [otp, email, verifyOtp, navigate]);
+  }, [email, verifyOtp, navigate, setValue]);
 
   const handleResend = async () => {
     if (cooldown > 0 || isResending) return;
-    setError(null);
     try {
       await resendOtp({ email }).unwrap();
       setCooldown(RESEND_COOLDOWN);
       setDigits(["", "", "", "", "", ""]);
+      setValue("otp", "", { shouldValidate: true });
       setTimeout(() => inputRefs.current[0]?.focus(), 50);
     } catch (err: any) {
-      setError(err?.data?.message ?? "Failed to resend code. Please try again.");
+      // Error is handled by the form validation
     }
   };
 
@@ -158,7 +159,7 @@ const VerifyEmail = () => {
               <span className="text-yellow-400 font-semibold">10 minutes</span>.
             </p>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={(e) => { e.preventDefault(); handleFormSubmit(onSubmit)(e); }}>
               {/* OTP inputs */}
               <div
                 className="flex justify-center gap-3 mb-6"
@@ -175,28 +176,29 @@ const VerifyEmail = () => {
                     onChange={(e) => handleDigitChange(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     aria-label={`Digit ${i + 1}`}
+                    aria-invalid={errors.otp ? true : undefined}
                     className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 bg-gray-800/60 text-white outline-none transition-all duration-200 caret-transparent
-                      ${error
+                      ${errors.otp
                         ? "border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                         : digit
-                        ? "border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
-                        : "border-red-900/50 hover:border-red-800/70 focus:border-yellow-500 focus:shadow-[0_0_14px_rgba(234,179,8,0.3)]"
+                          ? "border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
+                          : "border-red-900/50 hover:border-red-800/70 focus:border-yellow-500 focus:shadow-[0_0_14px_rgba(234,179,8,0.3)]"
                       }`}
                   />
                 ))}
               </div>
 
               {/* Error */}
-              {error && (
+              {errors.otp && (
                 <p className="text-red-400 text-sm text-center mb-4 flex items-center justify-center gap-1.5" role="alert">
-                  <span aria-hidden>✕</span> {error}
+                  <span aria-hidden>✕</span> {errors.otp.message}
                 </p>
               )}
 
               {/* Submit */}
               <button
                 type="submit"
-                disabled={isVerifying || otp.length < 6}
+                disabled={isVerifying || digits.join("").length < 6}
                 className="w-full py-3 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-600 hover:to-red-700 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 border border-red-600/50 shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-500/70"
               >
                 {isVerifying ? (
@@ -222,8 +224,8 @@ const VerifyEmail = () => {
                 {cooldown > 0
                   ? `Resend in ${cooldown}s`
                   : isResending
-                  ? "Sending…"
-                  : "Resend Code"}
+                    ? "Sending…"
+                    : "Resend Code"}
               </button>
             </div>
 

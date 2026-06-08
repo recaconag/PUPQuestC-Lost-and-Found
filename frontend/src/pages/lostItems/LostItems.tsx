@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { FaSearch, FaFilter, FaCalendarAlt, FaMapMarkerAlt } from "react-icons/fa";
 import type { lostItem } from "../../types/types";
 import PaginationNav from "../../components/shared/PaginationNav";
+import { formatDate } from "../../utils/formatDate";
 
 const LostItemsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -106,7 +107,7 @@ const LostItemsPage = () => {
             Lost Items
           </h2>
           <p className="text-sm text-gray-400">
-            Help reunite people with their lost belongings
+            Browse reported lost items within the PUPQC campus.
           </p>
         </div>
 
@@ -175,9 +176,8 @@ const LostItemsPage = () => {
         <div className="mb-6">
           <p className="text-center font-medium text-gray-400">
             {searchTerm
-              ? `Search results for "${searchTerm}" - ${
-                  lostItems?.data?.length || 0
-                } items found`
+              ? `Search results for "${searchTerm}" - ${lostItems?.data?.length || 0
+              } items found`
               : `Showing ${lostItems?.data?.length || 0} lost items`}
           </p>
         </div>
@@ -255,7 +255,7 @@ const LostItemsPage = () => {
                       <div className="flex items-center gap-2 text-sm">
                         <FaCalendarAlt className="text-gray-500 flex-shrink-0 w-3 h-3" />
                         <span className="text-gray-300">
-                          {lostItem?.date ? String(lostItem.date).split("T")[0] : "No date reported"}
+                          {formatDate(lostItem?.date) || "No date reported"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">

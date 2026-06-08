@@ -4,10 +4,11 @@ import { ui } from "./tokens";
 
 type Props = React.InputHTMLAttributes<HTMLInputElement> & {
   hasError?: boolean;
+  ariaDescribedBy?: string;
 };
 
 export const PupInput = forwardRef<HTMLInputElement, Props>(function PupInput(
-  { className, hasError, ...props },
+  { className, hasError, ariaDescribedBy, ...props },
   ref
 ) {
   return (
@@ -15,6 +16,7 @@ export const PupInput = forwardRef<HTMLInputElement, Props>(function PupInput(
       ref={ref}
       {...props}
       aria-invalid={hasError ? "true" : undefined}
+      aria-describedby={ariaDescribedBy || props["aria-describedby"]}
       className={cx(
         ui.motion,
         ui.focusRing,

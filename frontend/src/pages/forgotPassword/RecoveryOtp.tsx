@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { FaArrowLeft, FaEnvelope } from "react-icons/fa";
 import { Spinner } from "flowbite-react";
 import { useVerifyRecoveryOtpMutation, useForgotPasswordMutation } from "../../redux/api/api";
+import { recoveryOtpSchema, type RecoveryOtpValues } from "../../ui/forms/schemas";
+import { useZodForm } from "../../ui/forms/useZodForm";
 
 const RESEND_COOLDOWN = 60;
 
@@ -12,13 +14,20 @@ const RecoveryOtp = () => {
   const email = searchParams.get("email") ?? "";
 
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
-  const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [verifyRecoveryOtp, { isLoading: isVerifying }] = useVerifyRecoveryOtpMutation();
   const [forgotPassword, { isLoading: isResending }] = useForgotPasswordMutation();
+
+  const {
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useZodForm<typeof recoveryOtpSchema, RecoveryOtpValues>(recoveryOtpSchema, {
+    defaultValues: { otp: "" },
+  });
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
@@ -41,7 +50,7 @@ const RecoveryOtp = () => {
     const next = [...digits];
     next[index] = sanitized;
     setDigits(next);
-    setError(null);
+    setValue("otp", next.join(""), { shouldValidate: true });
     if (sanitized && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -53,6 +62,7 @@ const RecoveryOtp = () => {
         const next = [...digits];
         next[index] = "";
         setDigits(next);
+        setValue("otp", next.join(""), { shouldValidate: true });
       } else if (index > 0) {
         inputRefs.current[index - 1]?.focus();
       }
@@ -70,37 +80,32 @@ const RecoveryOtp = () => {
     const next = [...digits];
     pasted.split("").forEach((ch, i) => { if (i < 6) next[i] = ch; });
     setDigits(next);
+    setValue("otp", next.join(""), { shouldValidate: true });
     const focusIndex = Math.min(pasted.length, 5);
     inputRefs.current[focusIndex]?.focus();
   };
 
-  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (otp.length < 6) {
-      setError("Please enter all 6 digits of your recovery code.");
-      return;
-    }
-    setError(null);
+  const onSubmit = useCallback(async (data: RecoveryOtpValues) => {
     try {
-      await verifyRecoveryOtp({ email, otp }).unwrap();
-      navigate(`/reset-password?email=${encodeURIComponent(email)}&otp=${encodeURIComponent(otp)}`);
+      await verifyRecoveryOtp({ email, otp: data.otp }).unwrap();
+      navigate(`/reset-password?email=${encodeURIComponent(email)}&otp=${encodeURIComponent(data.otp)}`);
     } catch (err: any) {
-      setError(err?.data?.message ?? "Verification failed. Please try again.");
       setDigits(["", "", "", "", "", ""]);
+      setValue("otp", "", { shouldValidate: true });
       setTimeout(() => inputRefs.current[0]?.focus(), 50);
     }
-  }, [otp, email, verifyRecoveryOtp, navigate]);
+  }, [email, verifyRecoveryOtp, navigate, setValue]);
 
   const handleResend = async () => {
     if (cooldown > 0 || isResending) return;
-    setError(null);
     try {
       await forgotPassword({ email }).unwrap();
       setCooldown(RESEND_COOLDOWN);
       setDigits(["", "", "", "", "", ""]);
+      setValue("otp", "", { shouldValidate: true });
       setTimeout(() => inputRefs.current[0]?.focus(), 50);
     } catch (err: any) {
-      setError(err?.data?.message ?? "Failed to resend code. Please try again.");
+      // Error will be handled by the form validation
     }
   };
 
@@ -130,7 +135,7 @@ const RecoveryOtp = () => {
               <span className="text-yellow-400 font-semibold">10 minutes</span>.
             </p>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit)(e); }}>
               <div
                 className="flex justify-center gap-3 mb-6"
                 onPaste={handlePaste}
@@ -146,20 +151,21 @@ const RecoveryOtp = () => {
                     onChange={(e) => handleDigitChange(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     aria-label={`Digit ${i + 1}`}
+                    aria-invalid={errors.otp ? true : undefined}
                     className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 bg-gray-800/60 text-white outline-none transition-all duration-200 caret-transparent
-                      ${error
+                      ${errors.otp
                         ? "border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.25)]"
                         : digit
-                        ? "border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
-                        : "border-red-900/50 hover:border-red-800/70 focus:border-yellow-500 focus:shadow-[0_0_14px_rgba(234,179,8,0.3)]"
+                          ? "border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
+                          : "border-red-900/50 hover:border-red-800/70 focus:border-yellow-500 focus:shadow-[0_0_14px_rgba(234,179,8,0.3)]"
                       }`}
                   />
                 ))}
               </div>
 
-              {error && (
+              {errors.otp && (
                 <p className="text-red-400 text-sm text-center mb-4 flex items-center justify-center gap-1.5" role="alert">
-                  <span aria-hidden>✕</span> {error}
+                  <span aria-hidden>✕</span> {errors.otp.message}
                 </p>
               )}
 
@@ -187,8 +193,8 @@ const RecoveryOtp = () => {
                 {cooldown > 0
                   ? `Resend in ${cooldown}s`
                   : isResending
-                  ? "Sending…"
-                  : "Resend Code"}
+                    ? "Sending…"
+                    : "Resend Code"}
               </button>
             </div>
 

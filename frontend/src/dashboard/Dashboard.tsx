@@ -7,6 +7,7 @@ import {
 } from "react-icons/fa";
 import { useAdminStatsQuery, useGetRecentActivityQuery } from "../redux/api/api";
 import { Link } from "react-router-dom";
+import EmptyState from "../components/shared/EmptyState";
 
 const Dashboard = () => {
   const { data: adminStats, isLoading } = useAdminStatsQuery({});
@@ -151,7 +152,11 @@ const Dashboard = () => {
                 </div>
               ))
             ) : recentActivity.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-6">No recent activity yet.</p>
+              <EmptyState
+                icon={<FaChartLine className="w-full h-full" />}
+                title="No Recent Activity"
+                description="No recent activity has been recorded yet. Activity will appear here as users interact with the system."
+              />
             ) : (
               recentActivity.map((activity: any) => (
                 <div
@@ -159,15 +164,14 @@ const Dashboard = () => {
                   className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-700/50 transition-colors"
                 >
                   <div
-                    className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                      activity.type === "found"
-                        ? "bg-yellow-500"
-                        : activity.type === "claim"
+                    className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${activity.type === "found"
+                      ? "bg-yellow-500"
+                      : activity.type === "claim"
                         ? "bg-yellow-400"
                         : activity.type === "lost"
-                        ? "bg-red-500"
-                        : "bg-gray-400"
-                    }`}
+                          ? "bg-red-500"
+                          : "bg-gray-400"
+                      }`}
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm font-medium">
@@ -176,15 +180,14 @@ const Dashboard = () => {
                     <p className="text-gray-400 text-xs">{activity.time}</p>
                   </div>
                   <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      activity.status === "new"
-                        ? "bg-yellow-900/50 text-yellow-300"
-                        : activity.status === "pending"
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${activity.status === "new"
+                      ? "bg-yellow-900/50 text-yellow-300"
+                      : activity.status === "pending"
                         ? "bg-yellow-900/50 text-yellow-300"
                         : activity.status === "active"
-                        ? "bg-red-900/50 text-red-300"
-                        : "bg-gray-700 text-gray-300"
-                    }`}
+                          ? "bg-red-900/50 text-red-300"
+                          : "bg-gray-700 text-gray-300"
+                      }`}
                   >
                     {activity.status}
                   </span>

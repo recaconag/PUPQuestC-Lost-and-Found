@@ -6,7 +6,7 @@ import AppError from "../../global/error";
 import { StatusCodes } from "http-status-codes";
 import { systemSettingsService } from "../systemSettings/systemSettings.service";
 
-const createFoundItem = async (data: FoundItem, userId: string) => {
+const createFoundItem = async (data: any, userId: string) => {
   const settings = await systemSettingsService.getSettings();
   const approvalStatus = settings.requireItemApproval ? "PENDING" : "PUBLISHED";
 
@@ -15,12 +15,13 @@ const createFoundItem = async (data: FoundItem, userId: string) => {
       categoryId: data.categoryId,
       description: data.description,
       date: new Date(data.date),
-      claimProcess: data.claimProcess,
-      img: data.img,
+      claimProcess: data.claimProcess || "",
+      img: data.img || "",
       foundItemName: data.foundItemName,
       location: data.location,
       userId,
       approvalStatus,
+      aiTags: data.aiTags || null,
     },
     include: {
       user: {
@@ -142,7 +143,10 @@ const editMyFoundItem = async (data: any, user: JwtPayload) => {
   });
 
   if (!isExist) {
-    throw new AppError(StatusCodes.FORBIDDEN, "Found item not found or you are not authorized to edit this report.");
+    throw new AppError(
+      StatusCodes.FORBIDDEN,
+      "Found item not found or you are not authorized to edit this report.",
+    );
   }
 
   if (payload.date) {
@@ -157,8 +161,8 @@ const editMyFoundItem = async (data: any, user: JwtPayload) => {
 };
 const deleteMyFoundItem = async (id: string, user?: JwtPayload) => {
   const whereCondition: any = { id };
-  
-  if (user && user.role !== 'ADMIN') {
+
+  if (user && user.role !== "ADMIN") {
     whereCondition.userId = user.id;
   }
 
@@ -172,19 +176,59 @@ const deleteMyFoundItem = async (id: string, user?: JwtPayload) => {
   return result;
 };
 
-const getAllFoundItemsAdmin = async () => {
-  return prisma.foundItem.findMany({
-    where: { isDeleted: false },
-    orderBy: { createdAt: "desc" },
-    include: {
-      user: { select: { id: true, name: true, email: true } },
-      category: true,
+const getAllFoundItemsAdmin = async (user: JwtPayload, page: number = 1, limit: number = 10, search: string = "") => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
+
+  const skip = (page - 1) * limit;
+
+  const where: any = { isDeleted: false };
+
+  if (search) {
+    where.OR = [
+      { foundItemName: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+      { location: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  const [data, total] = await Promise.all([
+    prisma.foundItem.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        category: true,
+      },
+      skip,
+      take: limit,
+    }),
+    prisma.foundItem.count({
+      where,
+    }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    data,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages,
     },
-  });
+  };
 };
 
-const approveFoundItem = async (id: string) => {
-  const item = await prisma.foundItem.findFirst({ where: { id, isDeleted: false } });
+const approveFoundItem = async (id: string, user: JwtPayload) => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
+  const item = await prisma.foundItem.findFirst({
+    where: { id, isDeleted: false },
+  });
   if (!item) throw new AppError(StatusCodes.NOT_FOUND, "Found item not found.");
   return prisma.foundItem.update({
     where: { id },

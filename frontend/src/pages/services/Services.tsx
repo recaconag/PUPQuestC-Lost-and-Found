@@ -16,12 +16,12 @@ interface Service {
 // Icon mapping for fallback services
 const getServiceIcon = (title: string): ReactElement => {
   const iconMapping: { [key: string]: ReactElement } = {
-    "Lost Item Reporting": <TbReport size="30" />,
-    "Search for Lost Items": <FaSearch size="30" />,
-    "Location-Based Services": <IoLocationSharp size="33" />,
-    "Help Desk Support": <BiSupport size="30" />,
-    "Data Encryption and Privacy": <IoShieldCheckmark size="30" />,
-    "Item Claiming": <FaGift size="27" />,
+    "Report Lost Items": <TbReport size="30" />,
+    "Browse Found Items": <FaSearch size="30" />,
+    "Campus Locations": <IoLocationSharp size="33" />,
+    "Help and Assistance": <BiSupport size="30" />,
+    "Safe and Secure": <IoShieldCheckmark size="30" />,
+    "Claiming Items": <FaGift size="27" />,
   };
 
   return iconMapping[title] || <FaSearch size="30" />;
@@ -29,34 +29,34 @@ const getServiceIcon = (title: string): ReactElement => {
 
 const defaultServices: Service[] = [
   {
-    title: "Lost Item Reporting",
+    title: "Report Lost Items",
     description:
-      "Easily report lost items by providing detailed descriptions, locations, and images, helping to track down your missing belongings.",
+      "Submit details about missing belongings, including item descriptions, locations, and photos.",
   },
   {
-    title: "Search for Lost Items",
+    title: "Browse Found Items",
     description:
-      "Quickly search the database for your lost items using keywords, categories, or locations to find matches.",
+      "Check reported found items and search for belongings that may match your missing item.",
   },
   {
-    title: "Location-Based Services",
+    title: "Campus Locations",
     description:
-      "View and track lost and found items within specific geographic areas, focusing your search on the most relevant locations.",
+      "View where lost or found items were last reported around the PUPQC campus.",
   },
   {
-    title: "Help Desk Support",
+    title: "Help and Assistance",
     description:
-      "Get assistance with your lost or found reports, claims, or other queries through our dedicated help desk service.",
+      "Get support for reports, claims, or other concerns related to lost and found items.",
   },
   {
-    title: "Data Encryption and Privacy",
+    title: "Safe and Secure",
     description:
-      "Protect your information with industry-standard encryption, ensuring your personal data remains secure and confidential.",
+      "Your submitted information and reports are handled securely within the system.",
   },
   {
-    title: "Item Claiming",
+    title: "Claiming Items",
     description:
-      "Verify and claim found items securely through a streamlined process, ensuring that only the rightful owner can retrieve the item.",
+      "Verified users can request and claim reported items through the system.",
   },
 ];
 
@@ -95,14 +95,13 @@ const Services = () => {
       <div className="px-4 sm:px-6 lg:px-8 mx-auto max-w-7xl">
         <div className="mx-auto flex max-w-4xl flex-col items-center space-y-4 text-center mb-16">
           <h2 className="text-4xl md:text-5xl tracking-tight font-bold leading-tight gold-text">
-            Our{" "}
+            How{" "}
             <span className="bg-gradient-to-r from-red-700 to-yellow-500 bg-clip-text text-transparent">
-              Services
+              PUPQuestC Helps
             </span>
           </h2>
           <p className="mb-6 font-light text-gray-300 text-lg md:text-xl max-w-2xl">
-            Comprehensive lost and found management solutions designed to help
-            you recover what matters most
+            Tools and features that make reporting and finding lost items easier within the PUPQC campus.
           </p>
         </div>
 

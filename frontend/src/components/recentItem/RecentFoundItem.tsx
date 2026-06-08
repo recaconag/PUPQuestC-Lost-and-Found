@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useGetFoundItemsQuery } from "../../redux/api/api";
 import { FaCalendarAlt, FaMapMarkerAlt, FaSearch } from "react-icons/fa";
 import EmptyState from "../shared/EmptyState";
+import { formatDate } from "../../utils/formatDate";
 
 const RecentFoundItem = () => {
   const { data: foundItems, isLoading } = useGetFoundItemsQuery({});
@@ -43,7 +44,7 @@ const RecentFoundItem = () => {
             </span>
           </h2>
           <p className="text-gray-400 text-lg">
-            These are the latest reported found items
+            Recently submitted found item reports within the PUPQC campus.
           </p>
         </div>
 
@@ -59,7 +60,7 @@ const RecentFoundItem = () => {
         {/* GRID */}
         <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {foundItems?.data?.slice(0, 8).map((item: any) => (
-            
+
             <div
               key={item?.id}
               className="group relative bg-gray-800/60 backdrop-blur-sm rounded-xl overflow-hidden border-t-2 border-t-yellow-600/60 border border-gray-700/60 shadow-sm hover:shadow-[0_4px_14px_rgba(128,0,0,0.25)] hover:scale-[1.02] transition-all duration-200"
@@ -93,7 +94,7 @@ const RecentFoundItem = () => {
 
               {/* CONTENT */}
               <div className="p-5 text-white">
-                
+
                 <h3 className="text-base font-semibold mb-2 line-clamp-1">
                   {item?.foundItemName}
                 </h3>
@@ -107,7 +108,7 @@ const RecentFoundItem = () => {
                   <div className="flex items-center gap-2 text-gray-400">
                     <FaCalendarAlt className="w-3.5 h-3.5 text-yellow-600 flex-shrink-0" />
                     <span className="text-gray-200">
-                      {item?.date ? item.date.split("T")[0] : "No date"}
+                      {formatDate(item?.date) || "No date"}
                     </span>
                   </div>
 

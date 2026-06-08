@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FaEdit,
   FaTrash,
@@ -15,7 +15,9 @@ import {
   useApproveLostItemMutation,
   useGetAllLostItemsAdminQuery,
 } from "../../redux/api/api";
+import EmptyState from "../../components/shared/EmptyState";
 import { IoMdRadioButtonOn } from "react-icons/io";
+import { formatDate } from "../../utils/formatDate";
 interface LostItem {
   id: string;
   lostItemName: string;
@@ -32,6 +34,7 @@ interface LostItem {
 
 const LostItemsManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -48,12 +51,23 @@ const LostItemsManagement = () => {
     date: "",
     categoryId: "",
   });
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1); // Reset to page 1 when search changes
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const {
     data: lostItemsData,
     isLoading,
     error,
-  } = useGetAllLostItemsAdminQuery({});
+  } = useGetAllLostItemsAdminQuery({ page, limit, search: debouncedSearch });
 
   const { data: categoriesData } = useCategoryQuery({});
   const [deleteMyLostItem] = useDeleteMyLostItemMutation();
@@ -159,20 +173,7 @@ const LostItemsManagement = () => {
   }
 
   const items = lostItemsData?.data || [];
-
-  const filteredItems = items.filter((item: LostItem) => {
-    const matchesSearch =
-      item.lostItemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      (statusFilter === "FOUND" && item.isFound) ||
-      (statusFilter === "ACTIVE" && !item.isFound && item.approvalStatus === "PUBLISHED") ||
-      (statusFilter === "PENDING" && item.approvalStatus === "PENDING");
-    const matchesCategory =
-      categoryFilter === "ALL" || item.category?.name === categoryFilter;
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
+  const pagination = lostItemsData?.meta;
 
   const pendingCount = items.filter((i: LostItem) => i.approvalStatus === "PENDING").length;
 
@@ -200,9 +201,9 @@ const LostItemsManagement = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { label: "Total Reports", value: items.length, color: "text-white",       bg: "bg-red-900/40 border-red-700/30",    icon: <FaEye className="text-white" /> },
-          { label: "Active",        value: items.filter((i: LostItem) => !i.isFound && i.approvalStatus === "PUBLISHED" && !i.isExpired).length, color: "text-red-400",  bg: "bg-yellow-900/40 border-yellow-700/30", icon: <IoMdRadioButtonOn className="text-red-400" /> },
-          { label: "Found",         value: items.filter((i: LostItem) => i.isFound).length, color: "text-green-400", bg: "bg-green-900/40 border-green-700/30", icon: <FaCheck className="text-green-400" /> },
+          { label: "Total Reports", value: items.length, color: "text-white", bg: "bg-red-900/40 border-red-700/30", icon: <FaEye className="text-white" /> },
+          { label: "Active", value: items.filter((i: LostItem) => !i.isFound && i.approvalStatus === "PUBLISHED" && !i.isExpired).length, color: "text-red-400", bg: "bg-yellow-900/40 border-yellow-700/30", icon: <IoMdRadioButtonOn className="text-red-400" /> },
+          { label: "Found", value: items.filter((i: LostItem) => i.isFound).length, color: "text-green-400", bg: "bg-green-900/40 border-green-700/30", icon: <FaCheck className="text-green-400" /> },
           { label: "Pending Approval", value: pendingCount, color: "text-orange-400", bg: "bg-orange-900/40 border-orange-700/30", icon: <FaEye className="text-orange-400" /> },
         ].map(({ label, value, color, bg, icon }) => (
           <div key={label} className="glass-card rounded-xl p-6">
@@ -246,7 +247,7 @@ const LostItemsManagement = () => {
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 cursor-pointer"
-            >  
+            >
               <option value="ALL">All Categories</option>
               {categoriesData?.data?.map((cat: any) => (
                 <option key={cat.id} value={cat.name}>
@@ -308,7 +309,7 @@ const LostItemsManagement = () => {
                   </td>
                   <td className="px-6 py-4 text-gray-300">{item.location}</td>
                   <td className="px-6 py-4 text-gray-300">
-                    {item.date ? new Date(item.date).toLocaleDateString() : "No Date Reported"}
+                    {formatDate(item.date) || "No Date Reported"}
                   </td>
                   <td className="px-6 py-4">{getStatusBadge(item)}</td>
                   <td className="px-6 py-4 text-gray-300">
@@ -334,20 +335,18 @@ const LostItemsManagement = () => {
                       <button
                         onClick={() => handleMarkAsFound(item.id, item.isFound)}
                         disabled={markingAsFoundId === item.id}
-                        className={`p-2 rounded-lg transition-colors disabled:cursor-not-allowed flex items-center justify-center ${
-                          item.isFound
-                            ? "text-red-500 hover:bg-red-500 hover:text-white disabled:bg-red-400"
-                            : "text-green-500 hover:bg-green-500 hover:text-white disabled:bg-green-400"
-                        }`}
+                        className={`p-2 rounded-lg transition-colors disabled:cursor-not-allowed flex items-center justify-center ${item.isFound
+                          ? "text-red-500 hover:bg-red-500 hover:text-white disabled:bg-red-400"
+                          : "text-green-500 hover:bg-green-500 hover:text-white disabled:bg-green-400"
+                          }`}
                         title={
                           item.isFound ? "Mark as Not Found" : "Mark as Found"
                         }
                       >
                         {markingAsFoundId === item.id ? (
                           <svg
-                            className={`animate-spin h-4 w-4 ${
-                              item.isFound ? "text-red-500" : "text-green-500"
-                            }`}
+                            className={`animate-spin h-4 w-4 ${item.isFound ? "text-red-500" : "text-green-500"
+                              }`}
                             xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
@@ -386,12 +385,55 @@ const LostItemsManagement = () => {
           </table>
         </div>
 
-        {filteredItems.length === 0 && (
-          <div className="text-center py-12">
-            <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-            <p className="text-gray-400">
-              No lost items found matching your criteria
-            </p>
+        {items.length === 0 && (
+          <EmptyState
+            icon={<FaSearch className="w-full h-full" />}
+            title="No Lost Items Found"
+            description={
+              debouncedSearch
+                ? "No lost items match your search criteria. Try adjusting your search terms."
+                : "No lost items have been reported yet. Lost item reports will appear here when users submit them."
+            }
+            action={
+              debouncedSearch ? (
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                  }}
+                  className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Clear Search
+                </button>
+              ) : null
+            }
+          />
+        )}
+
+        {/* Pagination Controls */}
+        {pagination && pagination.totalPage > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-700">
+            <div className="text-sm text-gray-400">
+              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} items
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={pagination.page === 1}
+                className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-400">
+                Page {pagination.page} of {pagination.totalPage}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(pagination.totalPage, p + 1))}
+                disabled={pagination.page === pagination.totalPage}
+                className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -582,7 +624,7 @@ const LostItemsManagement = () => {
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Location: {deletingItem.location}</span>
                     <span>
-                      Date: {new Date(deletingItem.date).toLocaleDateString()}
+                      Date: {formatDate(deletingItem.date)}
                     </span>
                   </div>
                 </div>

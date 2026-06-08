@@ -153,7 +153,7 @@ const api = baseApi.injectEndpoints({
     getSingleFoundItem: builder.query({
       query: (id: string) => {
         return {
-          url: `/found-item/${id}`,
+          url: `/found-items/${id}`,
           method: "GET",
         };
       },
@@ -264,10 +264,11 @@ const api = baseApi.injectEndpoints({
 
     // get all users
     getAllUsers: builder.query({
-      query: () => {
+      query: ({ page = 1, limit = 10, search = "" }: { page?: number; limit?: number; search?: string } = {}) => {
         return {
           url: "/users",
           method: "GET",
+          params: { page, limit, search },
         };
       },
       providesTags: ["users"],
@@ -275,10 +276,11 @@ const api = baseApi.injectEndpoints({
 
     // get all claims (admin)
     getAllClaims: builder.query({
-      query: () => {
+      query: ({ page = 1, limit = 10, search = "" }: { page?: number; limit?: number; search?: string } = {}) => {
         return {
           url: "/claims",
           method: "GET",
+          params: { page, limit, search },
         };
       },
       providesTags: ["adminData"],
@@ -291,6 +293,29 @@ const api = baseApi.injectEndpoints({
           url: `/claims/${claimId}`,
           method: "PUT",
           body: data,
+        };
+      },
+      invalidatesTags: ["adminData"],
+    }),
+
+    // generate QR code for approved claim
+    generateClaimQR: builder.mutation({
+      query: (claimId: string) => {
+        return {
+          url: `/claims/generate-qr/${claimId}`,
+          method: "POST",
+        };
+      },
+      invalidatesTags: ["adminData"],
+    }),
+
+    // verify QR code scanner
+    verifyClaimQR: builder.mutation({
+      query: ({ claimId, scannedToken }: { claimId: string; scannedToken: string }) => {
+        return {
+          url: `/claims/verify-qr/${claimId}`,
+          method: "POST",
+          body: { scannedToken },
         };
       },
       invalidatesTags: ["adminData"],
@@ -388,7 +413,7 @@ const api = baseApi.injectEndpoints({
       }),
     }),
 
-    // AI search
+    // AI search — text query
     aiSearch: builder.mutation({
       query: (data: { query: string }) => {
         return {
@@ -399,9 +424,25 @@ const api = baseApi.injectEndpoints({
       },
     }),
 
+    // =========================================================================
+    // PHASE 3 FIXED: AI search — image query (Multipart FormData stream handler)
+    // =========================================================================
+    aiImageSearch: builder.mutation({
+      query: (formData: FormData) => ({
+        url: "/upload-ai", // Tumitira na sa bagong Cloudinary + Gemini route controller natin!
+        method: "POST",
+        body: formData, // Ipinapasa ang buong raw FormData containing the file natively
+        // RTK Query will automatically clear the content-type header so the browser can format it as a clean multipart/form-data boundary sequence safely!
+      }),
+    }),
+
     // update profile name
     updateProfileName: builder.mutation({
-      query: (data: { firstName: string; middleName?: string; lastName: string }) => ({
+      query: (data: {
+        firstName: string;
+        middleName?: string;
+        lastName: string;
+      }) => ({
         url: "/update-profile-name",
         method: "PATCH",
         body: data,
@@ -489,21 +530,35 @@ const api = baseApi.injectEndpoints({
 
     // admin: get ALL items including PENDING/expired
     getAllFoundItemsAdmin: builder.query({
-      query: () => ({ url: "/admin/all-items/found", method: "GET" }),
+      query: ({ page = 1, limit = 10, search = "" }: { page?: number; limit?: number; search?: string } = {}) => ({
+        url: "/admin/all-items/found",
+        method: "GET",
+        params: { page, limit, search },
+      }),
       providesTags: ["foundItems"],
     }),
     getAllLostItemsAdmin: builder.query({
-      query: () => ({ url: "/admin/all-items/lost", method: "GET" }),
+      query: ({ page = 1, limit = 10, search = "" }: { page?: number; limit?: number; search?: string } = {}) => ({
+        url: "/admin/all-items/lost",
+        method: "GET",
+        params: { page, limit, search },
+      }),
       providesTags: ["mylostItems"],
     }),
 
     // approve items (admin)
     approveFoundItem: builder.mutation({
-      query: (id: string) => ({ url: `/admin/approve/found/${id}`, method: "PUT" }),
+      query: (id: string) => ({
+        url: `/admin/approve/found/${id}`,
+        method: "PUT",
+      }),
       invalidatesTags: ["foundItems"],
     }),
     approveLostItem: builder.mutation({
-      query: (id: string) => ({ url: `/admin/approve/lost/${id}`, method: "PUT" }),
+      query: (id: string) => ({
+        url: `/admin/approve/lost/${id}`,
+        method: "PUT",
+      }),
       invalidatesTags: ["mylostItems"],
     }),
   }),
@@ -530,8 +585,8 @@ export const {
   useEditMyLostItemMutation,
   useDeleteMyLostItemMutation,
   useGetMyFoundItemQuery,
-  useEditMyFoundItemMutation,    
-  useDeleteMyFoundItemMutation,  
+  useEditMyFoundItemMutation,
+  useDeleteMyFoundItemMutation,
   useAdminStatsQuery,
   useBlockUserMutation,
   useChangeUserRoleMutation,
@@ -539,6 +594,8 @@ export const {
   useGetAllUsersQuery,
   useGetAllClaimsQuery,
   useUpdateClaimStatusMutation,
+  useGenerateClaimQRMutation,
+  useVerifyClaimQRMutation,
   useMarkLostItemAsFoundMutation,
   useGetServicesQuery,
   useCreateServiceMutation,
@@ -549,6 +606,7 @@ export const {
   useVerifyOtpMutation,
   useResendOtpMutation,
   useAiSearchMutation,
+  useAiImageSearchMutation,
   useForgotPasswordMutation,
   useVerifyRecoveryOtpMutation,
   useResetPasswordMutation,

@@ -57,7 +57,7 @@ const Faq = () => {
             </h2>
 
             <p className="text-gray-300 text-lg">
-              Find answers to common questions about our lost and found system.
+              Common questions about reporting, finding, and claiming lost items in PUPQC.
             </p>
           </div>
 
@@ -75,9 +75,8 @@ const Faq = () => {
                   <button
                     onClick={() => toggleFaq(index)}
                     aria-expanded={isOpen}
-                    className={`flex items-center gap-4 w-full p-6 text-left font-semibold transition-all duration-200 ${
-                      isOpen ? "bg-gray-700/40" : "hover:bg-gray-700/30"
-                    }`}
+                    className={`flex items-center gap-4 w-full p-6 text-left font-semibold transition-all duration-200 ${isOpen ? "bg-gray-700/40" : "hover:bg-gray-700/30"
+                      }`}
                   >
                     <span className="flex-1 text-white">
                       {faq.question}
@@ -85,9 +84,8 @@ const Faq = () => {
 
                     {/* ROTATING ICON */}
                     <div
-                      className={`text-yellow-500 transition-all duration-200 ${
-                        isOpen ? "rotate-45 scale-110" : "rotate-0"
-                      }`}
+                      className={`text-yellow-500 transition-all duration-200 ${isOpen ? "rotate-45 scale-110" : "rotate-0"
+                        }`}
                     >
                       <FaPlus />
                     </div>
@@ -95,11 +93,10 @@ const Faq = () => {
 
                   {/* ANSWER */}
                   <div
-                    className={`grid transition-all duration-500 ease-in-out ${
-                      isOpen
-                        ? "grid-rows-[1fr] opacity-100"
-                        : "grid-rows-[0fr] opacity-0"
-                    }`}
+                    className={`grid transition-all duration-500 ease-in-out ${isOpen
+                      ? "grid-rows-[1fr] opacity-100"
+                      : "grid-rows-[0fr] opacity-0"
+                      }`}
                   >
                     <div className="overflow-hidden">
                       <div className="px-6 pb-6 text-gray-300 leading-relaxed">
@@ -109,9 +106,8 @@ const Faq = () => {
                   </div>
 
                   {/* DIVIDER GLOW */}
-                  <div className={`h-[1px] bg-gradient-to-r from-transparent via-red-700/40 to-transparent transition-opacity duration-200 ${
-                    isOpen ? "opacity-100" : "opacity-0"
-                  }`} />
+                  <div className={`h-[1px] bg-gradient-to-r from-transparent via-red-700/40 to-transparent transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0"
+                    }`} />
                 </li>
               );
             })}

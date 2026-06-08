@@ -51,7 +51,11 @@ const Login = () => {
         return;
       }
       setUserLocalStorage(payload?.token);
-      navigate(from, { replace: true });
+      if (payload?.role === "admin") {
+        navigate("/admin/dashboard", { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     } catch (err: any) {
       setLoginError(err?.data?.message ?? "Invalid credentials. Please try again.");
     }
@@ -143,101 +147,105 @@ const Login = () => {
 
             {/* ── Credentials Form ── */}
             {!twoFactorUserId && !passwordExpired && (
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
 
-              {/* Email / Username */}
-              <FormField<LoginValues> name="username" label="PUP Webmail" errors={errors}>
-                {({ id, hasError }) => (
-                  <div className="relative">
-                    <PupInput
-                      id={id}
-                      type="text"
-                      autoComplete="email"
-                      placeholder="name@iskolarngbayan.pup.edu.ph"
-                      {...register("username")}
-                      hasError={hasError}
-                      className="pr-10"
-                    />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                      <MdEmail className="w-4.5 h-4.5 text-gray-500" />
+                {/* Email / Username */}
+                <FormField<LoginValues> name="username" label="PUP Webmail" errors={errors} required>
+                  {({ id, hasError, ariaDescribedBy }) => (
+                    <div className="relative">
+                      <PupInput
+                        id={id}
+                        type="text"
+                        autoComplete="email"
+                        placeholder="name@iskolarngbayan.pup.edu.ph"
+                        {...register("username")}
+                        hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
+                        className="pr-10"
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <MdEmail className="w-4.5 h-4.5 text-gray-500" />
+                      </div>
                     </div>
-                  </div>
-                )}
-              </FormField>
+                  )}
+                </FormField>
 
-              {/* Password */}
-              <FormField<LoginValues> name="password" label="Password" errors={errors}>
-                {({ id, hasError }) => (
-                  <div className="relative">
-                    <PupInput
-                      id={id}
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="current-password"
-                      placeholder="••••••••"
-                      {...register("password")}
-                      hasError={hasError}
-                      className="pr-10"
-                    />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((p) => !p)}
-                        className="text-gray-400 hover:text-gray-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500/70 rounded-md"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword
-                          ? <MdVisibilityOff className="w-4.5 h-4.5" />
-                          : <MdVisibility className="w-4.5 h-4.5" />}
-                      </button>
+                {/* Password */}
+                <FormField<LoginValues> name="password" label="Password" errors={errors} required>
+                  {({ id, hasError, ariaDescribedBy }) => (
+                    <div className="relative">
+                      <PupInput
+                        id={id}
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        {...register("password")}
+                        hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
+                        className="pr-10"
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((p) => !p)}
+                          className="text-gray-400 hover:text-gray-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500/70 rounded-md"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword
+                            ? <MdVisibilityOff className="w-4.5 h-4.5" />
+                            : <MdVisibility className="w-4.5 h-4.5" />}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </FormField>
+                  )}
+                </FormField>
 
-              {/* Forgot Password */}
-              <div className="flex justify-end -mt-2">
-                <Link
-                  to="/forgot-password"
-                  className="text-xs font-medium transition-colors duration-200"
-                  style={{ color: "#800000" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "#eab308")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "#800000")}
+                {/* Forgot Password */}
+                <div className="flex justify-end -mt-2">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-medium transition-colors duration-200"
+                    style={{ color: "#800000" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#eab308")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#800000")}
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
+
+                {/* Inline error */}
+                {loginError && (
+                  <p className="text-sm text-red-400 text-center flex items-center justify-center gap-1.5" role="alert">
+                    <span aria-hidden>✕</span> {loginError}
+                  </p>
+                )}
+
+                <PupButton
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Forgot Password?
-                </Link>
-              </div>
+                  {isLoading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Spinner size="sm" />
+                      Logging in…
+                    </span>
+                  ) : "Login"}
+                </PupButton>
 
-              {/* Inline error */}
-              {loginError && (
-                <p className="text-sm text-red-400 text-center flex items-center justify-center gap-1.5" role="alert">
-                  <span aria-hidden>✕</span> {loginError}
+                <p className="text-center text-sm text-gray-400">
+                  Don't have an account yet?{" "}
+                  <Link
+                    to="/register"
+                    className="font-semibold text-yellow-500 hover:text-yellow-400 transition-colors duration-200 underline decoration-red-700/50 underline-offset-4"
+                  >
+                    Sign up here
+                  </Link>
                 </p>
-              )}
 
-              <PupButton
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Spinner size="sm" />
-                    Logging in…
-                  </span>
-                ) : "Login"}
-              </PupButton>
-
-              <p className="text-center text-sm text-gray-400">
-                Don't have an account yet?{" "}
-                <Link
-                  to="/register"
-                  className="font-semibold text-yellow-500 hover:text-yellow-400 transition-colors duration-200 underline decoration-red-700/50 underline-offset-4"
-                >
-                  Sign up here
-                </Link>
-              </p>
-
-            </form>
+              </form>
             )}
           </div>
         </div>

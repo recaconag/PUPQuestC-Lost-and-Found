@@ -129,8 +129,9 @@ const ReportFoundItem = () => {
                 name="foundItemName"
                 label="Item Name"
                 errors={errors}
+                required
               >
-                {({ id, hasError }) => (
+                {({ id, hasError, ariaDescribedBy }) => (
                   <PupInput
                     id={id}
                     type="text"
@@ -138,6 +139,8 @@ const ReportFoundItem = () => {
                     className="h-12"
                     {...register("foundItemName")}
                     hasError={hasError}
+                    ariaDescribedBy={ariaDescribedBy}
+                    aria-required="true"
                   />
                 )}
               </FormField>
@@ -146,12 +149,15 @@ const ReportFoundItem = () => {
                 name="categoryId"
                 label="Category"
                 errors={errors}
+                required
               >
-                {({ id, hasError }) => (
+                {({ id, hasError, ariaDescribedBy }) => (
                   <div className="relative">
                     <select
                       id={id}
                       aria-invalid={hasError ? true : undefined}
+                      aria-describedby={ariaDescribedBy}
+                      aria-required="true"
                       {...register("categoryId")}
                       className={cx(
                         "h-12 w-full cursor-pointer appearance-none rounded-lg border bg-gray-800/50 px-4 text-sm text-white",
@@ -201,8 +207,9 @@ const ReportFoundItem = () => {
                 name="location"
                 label="Location Found"
                 errors={errors}
+                required
               >
-                {({ id, hasError }) => (
+                {({ id, hasError, ariaDescribedBy }) => (
                   <PupInput
                     id={id}
                     type="text"
@@ -210,6 +217,8 @@ const ReportFoundItem = () => {
                     className="h-12"
                     {...register("location")}
                     hasError={hasError}
+                    ariaDescribedBy={ariaDescribedBy}
+                    aria-required="true"
                   />
                 )}
               </FormField>
@@ -244,8 +253,9 @@ const ReportFoundItem = () => {
                 name="claimProcess"
                 label="Claim Process"
                 errors={errors}
+                required
               >
-                {({ id, hasError }) => (
+                {({ id, hasError, ariaDescribedBy }) => (
                   <PupInput
                     id={id}
                     type="text"
@@ -253,6 +263,8 @@ const ReportFoundItem = () => {
                     className="h-12"
                     {...register("claimProcess")}
                     hasError={hasError}
+                    ariaDescribedBy={ariaDescribedBy}
+                    aria-required="true"
                   />
                 )}
               </FormField>
@@ -264,14 +276,17 @@ const ReportFoundItem = () => {
                 name="description"
                 label="Description"
                 errors={errors}
+                required
               >
-                {({ id, hasError }) => (
+                {({ id, hasError, ariaDescribedBy }) => (
                   <PupTextarea
                     id={id}
                     placeholder="Describe the item — color, brand, size, distinguishing marks..."
                     className="min-h-[200px] resize-none"
                     {...register("description")}
                     hasError={hasError}
+                    ariaDescribedBy={ariaDescribedBy}
+                    aria-required="true"
                   />
                 )}
               </FormField>
@@ -280,12 +295,14 @@ const ReportFoundItem = () => {
                 name="imgUrl"
                 label="Item Photo"
                 errors={errors}
+                required
               >
-                {({ hasError }) => (
+                {({ hasError, ariaDescribedBy }) => (
                   <ImageUpload
                     uploadedUrl={uploadedImgUrl || undefined}
                     hasError={hasError}
                     disabled={isLoading}
+                    ariaDescribedBy={ariaDescribedBy}
                     onUploadComplete={(url) => {
                       setUploadedImgUrl(url);
                       setValue("imgUrl", url, { shouldValidate: true });

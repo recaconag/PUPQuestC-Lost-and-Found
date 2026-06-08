@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaEdit, FaTrash, FaEye, FaSearch, FaCheck } from "react-icons/fa";
 import {
   useDeleteMyFoundItemMutation,
@@ -6,6 +6,8 @@ import {
   useApproveFoundItemMutation,
   useGetAllFoundItemsAdminQuery,
 } from "../../redux/api/api";
+import EmptyState from "../../components/shared/EmptyState";
+import { formatDate } from "../../utils/formatDate";
 
 interface FoundItem {
   id: string;
@@ -23,6 +25,7 @@ interface FoundItem {
 
 const FoundItemsManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -37,12 +40,23 @@ const FoundItemsManagement = () => {
     location: "",
     date: "",
   });
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1); // Reset to page 1 when search changes
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const {
     data: foundItemsData,
     isLoading,
     error,
-  } = useGetAllFoundItemsAdminQuery({});
+  } = useGetAllFoundItemsAdminQuery({ page, limit, search: debouncedSearch });
 
   const [deleteFoundItem] = useDeleteMyFoundItemMutation();
   const [editMyFoundItem] = useEditMyFoundItemMutation();
@@ -146,20 +160,7 @@ const FoundItemsManagement = () => {
   }
 
   const items = foundItemsData?.data || [];
-
-  const filteredItems = items.filter((item: FoundItem) => {
-    const matchesSearch =
-      item.foundItemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      (statusFilter === "CLAIMED" && item.isClaimed) ||
-      (statusFilter === "ACTIVE" && !item.isClaimed && item.approvalStatus === "PUBLISHED") ||
-      (statusFilter === "PENDING" && item.approvalStatus === "PENDING");
-    const matchesCategory =
-      categoryFilter === "ALL" || item.category?.name === categoryFilter;
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
+  const pagination = foundItemsData?.meta;
 
   const pendingCount = items.filter((i: FoundItem) => i.approvalStatus === "PENDING").length;
 
@@ -294,7 +295,7 @@ const FoundItemsManagement = () => {
                   </td>
                   <td className="px-6 py-4 text-gray-300">{item.location}</td>
                   <td className="px-6 py-4 text-gray-300">
-                    {item.date ? new Date(item.date).toLocaleDateString() : "N/A"}
+                    {formatDate(item.date) || "N/A"}
                   </td>
                   <td className="px-6 py-4">{getStatusBadge(item)}</td>
                   <td className="px-6 py-4 text-gray-300">
@@ -321,12 +322,55 @@ const FoundItemsManagement = () => {
           </table>
         </div>
 
-        {filteredItems.length === 0 && (
-          <div className="text-center py-12">
-            <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-            <p className="text-gray-400">
-              No items found matching your criteria
-            </p>
+        {items.length === 0 && (
+          <EmptyState
+            icon={<FaSearch className="w-full h-full" />}
+            title="No Found Items Found"
+            description={
+              debouncedSearch
+                ? "No found items match your search criteria. Try adjusting your search terms."
+                : "No found items have been reported yet. Found item reports will appear here when users submit them."
+            }
+            action={
+              debouncedSearch ? (
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                  }}
+                  className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Clear Search
+                </button>
+              ) : null
+            }
+          />
+        )}
+
+        {/* Pagination Controls */}
+        {pagination && pagination.totalPage > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-700">
+            <div className="text-sm text-gray-400">
+              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} items
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={pagination.page === 1}
+                className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-400">
+                Page {pagination.page} of {pagination.totalPage}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(pagination.totalPage, p + 1))}
+                disabled={pagination.page === pagination.totalPage}
+                className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -476,7 +520,7 @@ const FoundItemsManagement = () => {
                   <div className="flex justify-between text-sm text-gray-500">
                     <span>Location: {deletingItem.location}</span>
                     <span>
-                      Date: {new Date(deletingItem.date).toLocaleDateString()}
+                      Date: {formatDate(deletingItem.date)}
                     </span>
                   </div>
                 </div>

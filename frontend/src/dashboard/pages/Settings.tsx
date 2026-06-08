@@ -9,7 +9,6 @@ import {
   FaUser,
   FaCheckCircle,
 } from "react-icons/fa";
-import { useForm } from "react-hook-form";
 import {
   useChangePasswordMutation,
   useUpdateProfileImageMutation,
@@ -21,6 +20,11 @@ import {
 import { setAccessToken, useUserVerification } from "../../auth/auth";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
+import { FormField } from "../../ui/forms/FormField";
+import { changePasswordSchema, type ChangePasswordValues, updateProfileNameSchema, type UpdateProfileNameValues } from "../../ui/forms/schemas";
+import { useZodForm } from "../../ui/forms/useZodForm";
+import { PupInput } from "../../ui/PupInput";
+import { PupButton } from "../../ui/PupButton";
 
 const splitName = (fullName: string) => {
   const parts = (fullName || "").trim().split(/\s+/).filter(Boolean);
@@ -92,10 +96,10 @@ const Settings = () => {
     if ((sysSettingsData as any)?.data) {
       const d = (sysSettingsData as any).data;
       setSysItemSettings({
-        itemExpiryDays:        d.itemExpiryDays        ?? 30,
-        maxImageSizeMb:        d.maxImageSizeMb        ?? 5,
+        itemExpiryDays: d.itemExpiryDays ?? 30,
+        maxImageSizeMb: d.maxImageSizeMb ?? 5,
         autoDeleteExpiredItems: d.autoDeleteExpiredItems ?? true,
-        requireItemApproval:   d.requireItemApproval   ?? false,
+        requireItemApproval: d.requireItemApproval ?? false,
       });
     }
   }, [sysSettingsData]);
@@ -118,12 +122,12 @@ const Settings = () => {
     if ((sysSettingsData as any)?.data) {
       const d = (sysSettingsData as any).data;
       setSmtpSettings({
-        smtpHost:      d.smtpHost      || "smtp.gmail.com",
-        smtpPort:      d.smtpPort      || 587,
-        smtpUser:      d.smtpUser      || "",
-        smtpPass:      d.smtpPass      || "",
-        smtpSecure:    d.smtpSecure    ?? false,
-        smtpFromName:  d.smtpFromName  || "PUPQuestC Support",
+        smtpHost: d.smtpHost || "smtp.gmail.com",
+        smtpPort: d.smtpPort || 587,
+        smtpUser: d.smtpUser || "",
+        smtpPass: d.smtpPass || "",
+        smtpSecure: d.smtpSecure ?? false,
+        smtpFromName: d.smtpFromName || "PUPQuestC Support",
         smtpFromEmail: d.smtpFromEmail || "",
       });
     }
@@ -181,24 +185,34 @@ const Settings = () => {
   };
 
   // Password form
-  const passwordForm = useForm();
+  const {
+    handleSubmit: handlePasswordSubmit,
+    register: registerPassword,
+    formState: { errors: passwordErrors },
+  } = useZodForm<typeof changePasswordSchema, ChangePasswordValues>(changePasswordSchema, {
+    defaultValues: { currentPassword: "", newPassword: "" },
+  });
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // Name form
-  const nameParts = splitName((user as any)?.name || "");
-  const [firstName, setFirstName] = useState(nameParts.firstName);
-  const [middleName, setMiddleName] = useState(nameParts.middleName);
-  const [lastName, setLastName] = useState(nameParts.lastName);
+  const {
+    handleSubmit: handleNameSubmit,
+    register: registerName,
+    setValue: setNameValue,
+    formState: { errors: nameErrors },
+  } = useZodForm<typeof updateProfileNameSchema, UpdateProfileNameValues>(updateProfileNameSchema, {
+    defaultValues: { firstName: "", middleName: "", lastName: "" },
+  });
   const [nameSuccess, setNameSuccess] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
   useEffect(() => {
     const parts = splitName((user as any)?.name || "");
-    setFirstName(parts.firstName);
-    setMiddleName(parts.middleName);
-    setLastName(parts.lastName);
-  }, [(user as any)?.name]);
+    setNameValue("firstName", parts.firstName);
+    setNameValue("middleName", parts.middleName);
+    setNameValue("lastName", parts.lastName);
+  }, [(user as any)?.name, setNameValue]);
 
   // Avatar upload state
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -297,17 +311,14 @@ const Settings = () => {
     localStorage.setItem("pupquestc-lang", lang);
   };
 
-  const handleUpdateName = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleUpdateName = async (data: UpdateProfileNameValues) => {
     setNameError(null);
     setNameSuccess(false);
-    if (!firstName.trim()) { setNameError("First name is required."); return; }
-    if (!lastName.trim()) { setNameError("Last name is required."); return; }
     try {
       const res: any = await updateProfileName({
-        firstName: firstName.trim(),
-        middleName: middleName.trim(),
-        lastName: lastName.trim(),
+        firstName: data.firstName.trim(),
+        middleName: data.middleName.trim(),
+        lastName: data.lastName.trim(),
       }).unwrap();
       if (res?.data?.token) setAccessToken(res.data.token);
       setNameSuccess(true);
@@ -317,7 +328,7 @@ const Settings = () => {
     }
   };
 
-  const handleChangePassword = async (data: any) => {
+  const handleChangePassword = async (data: ChangePasswordValues) => {
     setPasswordError(null);
     setPasswordSuccess(false);
     try {
@@ -327,7 +338,7 @@ const Settings = () => {
         return;
       }
       if (res?.data?.statusCode === 200) {
-        passwordForm.reset();
+        handlePasswordSubmit(() => { })(); // Reset form
         setPasswordSuccess(true);
         setTimeout(() => setPasswordSuccess(false), 3000);
       }
@@ -337,10 +348,10 @@ const Settings = () => {
   };
 
   const tabs = [
-    { id: "account",  label: t("settings.tabs.account"),  icon: <FaUser />,      adminOnly: false },
-    { id: "security", label: t("settings.tabs.security"), icon: <FaShieldAlt />, adminOnly: true  },
-    { id: "system",   label: t("settings.tabs.system"),   icon: <FaDatabase />,  adminOnly: true  },
-    { id: "email",    label: t("settings.tabs.email"),    icon: <FaEnvelope />,  adminOnly: true  },
+    { id: "account", label: t("settings.tabs.account"), icon: <FaUser />, adminOnly: false },
+    { id: "security", label: t("settings.tabs.security"), icon: <FaShieldAlt />, adminOnly: true },
+    { id: "system", label: t("settings.tabs.system"), icon: <FaDatabase />, adminOnly: true },
+    { id: "email", label: t("settings.tabs.email"), icon: <FaEnvelope />, adminOnly: true },
   ].filter(tab => !tab.adminOnly || isAdmin);
 
   const inputCls = "w-full px-4 py-2.5 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200";
@@ -367,11 +378,10 @@ const Settings = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  activeTab === tab.id
-                    ? "bg-red-700 text-white shadow-md border border-red-600/50"
-                    : "text-gray-400 hover:bg-gray-700/60 hover:text-white"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === tab.id
+                  ? "bg-red-700 text-white shadow-md border border-red-600/50"
+                  : "text-gray-400 hover:bg-gray-700/60 hover:text-white"
+                  }`}
               >
                 <span className="text-xs">{tab.icon}</span>
                 {tab.label}
@@ -454,27 +464,47 @@ const Settings = () => {
                   onChange={(e) => { const file = e.target.files?.[0]; if (file) processAvatarFile(file); e.target.value = ""; }} aria-hidden />
 
                 {/* Name + Identity form */}
-                <form onSubmit={handleUpdateName} className="space-y-6">
+                <form onSubmit={handleNameSubmit(handleUpdateName)} className="space-y-6">
                   {/* Name row */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-1">
-                      <label className="block text-sm font-medium text-gray-300">
-                        {t("settings.account.firstName")} <span className="text-red-400">*</span>
-                      </label>
-                      <input type="text" value={firstName} onChange={(e) => { setFirstName(e.target.value); setNameError(null); }} placeholder="Juan" className={inputCls} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-sm font-medium text-gray-300">
-                        {t("settings.account.middleName")} <span className="text-gray-500 font-normal text-xs">{t("settings.account.middleNameOptional")}</span>
-                      </label>
-                      <input type="text" value={middleName} onChange={(e) => { setMiddleName(e.target.value); setNameError(null); }} placeholder="dela" className={inputCls} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-sm font-medium text-gray-300">
-                        {t("settings.account.lastName")} <span className="text-red-400">*</span>
-                      </label>
-                      <input type="text" value={lastName} onChange={(e) => { setLastName(e.target.value); setNameError(null); }} placeholder="Cruz" className={inputCls} />
-                    </div>
+                    <FormField<UpdateProfileNameValues> name="firstName" label={t("settings.account.firstName")} errors={nameErrors} required>
+                      {({ id, hasError, ariaDescribedBy }) => (
+                        <PupInput
+                          id={id}
+                          type="text"
+                          placeholder="Juan"
+                          {...registerName("firstName")}
+                          hasError={hasError}
+                          ariaDescribedBy={ariaDescribedBy}
+                          aria-required="true"
+                        />
+                      )}
+                    </FormField>
+                    <FormField<UpdateProfileNameValues> name="middleName" label={t("settings.account.middleName")} errors={nameErrors} hint={t("settings.account.middleNameOptional")}>
+                      {({ id, hasError, ariaDescribedBy }) => (
+                        <PupInput
+                          id={id}
+                          type="text"
+                          placeholder="dela"
+                          {...registerName("middleName")}
+                          hasError={hasError}
+                          ariaDescribedBy={ariaDescribedBy}
+                        />
+                      )}
+                    </FormField>
+                    <FormField<UpdateProfileNameValues> name="lastName" label={t("settings.account.lastName")} errors={nameErrors} required>
+                      {({ id, hasError, ariaDescribedBy }) => (
+                        <PupInput
+                          id={id}
+                          type="text"
+                          placeholder="Cruz"
+                          {...registerName("lastName")}
+                          hasError={hasError}
+                          ariaDescribedBy={ariaDescribedBy}
+                          aria-required="true"
+                        />
+                      )}
+                    </FormField>
                   </div>
 
                   {/* Read-only identity row */}
@@ -504,9 +534,9 @@ const Settings = () => {
                     <p className="text-sm text-green-400 flex items-center gap-1.5"><FaCheckCircle className="w-3.5 h-3.5" /> {t("settings.account.profileUpdated")}</p>
                   )}
 
-                  <button type="submit" disabled={isNameSaving} className={maroonBtn}>
+                  <PupButton type="submit" disabled={isNameSaving} className={maroonBtn}>
                     {isNameSaving ? (<><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t("settings.account.saving")}</>) : t("settings.account.updateProfile")}
-                  </button>
+                  </PupButton>
                 </form>
               </div>
 
@@ -523,32 +553,42 @@ const Settings = () => {
                 </div>
                 <p className="text-sm text-gray-500">{t("settings.account.changePasswordHint")}</p>
 
-                <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-4">
+                <form onSubmit={handlePasswordSubmit(handleChangePassword)} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                      <label className="block text-sm font-medium text-gray-300">{t("settings.account.currentPassword")}</label>
-                      <div className="relative">
-                        <input type={showPassword ? "text" : "password"}
-                          {...passwordForm.register("currentPassword", { required: "Current password is required" })}
-                          className={`${inputCls} pr-10`} placeholder="Current password" />
-                        <button type="button" onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-300">
-                          {showPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                      {passwordForm.formState.errors.currentPassword && (
-                        <p className="text-red-400 text-xs mt-1">{passwordForm.formState.errors.currentPassword?.message as string}</p>
+                    <FormField<ChangePasswordValues> name="currentPassword" label={t("settings.account.currentPassword")} errors={passwordErrors} required>
+                      {({ id, hasError, ariaDescribedBy }) => (
+                        <div className="relative">
+                          <PupInput
+                            id={id}
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Current password"
+                            {...registerPassword("currentPassword")}
+                            hasError={hasError}
+                            ariaDescribedBy={ariaDescribedBy}
+                            aria-required="true"
+                            className="pr-10"
+                          />
+                          <button type="button" onClick={() => setShowPassword(!showPassword)}
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-300"
+                            aria-label={showPassword ? "Hide password" : "Show password"}>
+                            {showPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
+                          </button>
+                        </div>
                       )}
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-sm font-medium text-gray-300">{t("settings.account.newPassword")}</label>
-                      <input type="password"
-                        {...passwordForm.register("newPassword", { required: "New password is required", minLength: { value: 6, message: "Password must be at least 6 characters" } })}
-                        className={inputCls} placeholder="New password" />
-                      {passwordForm.formState.errors.newPassword && (
-                        <p className="text-red-400 text-xs mt-1">{passwordForm.formState.errors.newPassword?.message as string}</p>
+                    </FormField>
+                    <FormField<ChangePasswordValues> name="newPassword" label={t("settings.account.newPassword")} errors={passwordErrors} required>
+                      {({ id, hasError, ariaDescribedBy }) => (
+                        <PupInput
+                          id={id}
+                          type="password"
+                          placeholder="New password"
+                          {...registerPassword("newPassword")}
+                          hasError={hasError}
+                          ariaDescribedBy={ariaDescribedBy}
+                          aria-required="true"
+                        />
                       )}
-                    </div>
+                    </FormField>
                   </div>
 
                   {passwordError && (
@@ -558,9 +598,9 @@ const Settings = () => {
                     <p className="text-sm text-green-400 flex items-center gap-1.5"><FaCheckCircle className="w-3.5 h-3.5" /> {t("settings.account.passwordChanged")}</p>
                   )}
 
-                  <button type="submit" disabled={isPasswordLoading} className={maroonBtn}>
+                  <PupButton type="submit" disabled={isPasswordLoading} className={maroonBtn}>
                     {isPasswordLoading ? (<><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t("settings.account.changing")}</>) : t("settings.account.changePassword")}
-                  </button>
+                  </PupButton>
                 </form>
               </div>
             </div>
@@ -604,14 +644,12 @@ const Settings = () => {
                 <button
                   type="button"
                   onClick={() => setSecSettings((p) => ({ ...p, enable2FA: !p.enable2FA }))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/70 ${
-                    secSettings.enable2FA ? "bg-red-600" : "bg-gray-700"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/70 ${secSettings.enable2FA ? "bg-red-600" : "bg-gray-700"
+                    }`}
                   aria-pressed={secSettings.enable2FA}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                    secSettings.enable2FA ? "translate-x-6" : "translate-x-1"
-                  }`} />
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${secSettings.enable2FA ? "translate-x-6" : "translate-x-1"
+                    }`} />
                 </button>
               </div>
 
@@ -659,14 +697,12 @@ const Settings = () => {
                   <button
                     type="button"
                     onClick={() => setSysItemSettings((p) => ({ ...p, [key]: !p[key] }))}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/70 ${
-                      sysItemSettings[key] ? "bg-red-600" : "bg-gray-700"
-                    }`}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/70 ${sysItemSettings[key] ? "bg-red-600" : "bg-gray-700"
+                      }`}
                     aria-pressed={sysItemSettings[key]}
                   >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                      sysItemSettings[key] ? "translate-x-6" : "translate-x-1"
-                    }`} />
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${sysItemSettings[key] ? "translate-x-6" : "translate-x-1"
+                      }`} />
                   </button>
                 </div>
               ))}
@@ -719,11 +755,11 @@ const Settings = () => {
               {/* Form grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {([
-                  { key: "smtpHost",      label: "SMTP Host",   type: "text",   hint: "e.g. smtp.gmail.com" },
-                  { key: "smtpPort",      label: "SMTP Port",   type: "number", hint: "587 (TLS) or 465 (SSL)" },
-                  { key: "smtpUser",      label: "Username",    type: "text",   hint: "your@gmail.com" },
-                  { key: "smtpFromName",  label: "From Name",   type: "text",   hint: "PUPQuestC Support" },
-                  { key: "smtpFromEmail", label: "From Email",  type: "email",  hint: "noreply@example.com (optional)" },
+                  { key: "smtpHost", label: "SMTP Host", type: "text", hint: "e.g. smtp.gmail.com" },
+                  { key: "smtpPort", label: "SMTP Port", type: "number", hint: "587 (TLS) or 465 (SSL)" },
+                  { key: "smtpUser", label: "Username", type: "text", hint: "your@gmail.com" },
+                  { key: "smtpFromName", label: "From Name", type: "text", hint: "PUPQuestC Support" },
+                  { key: "smtpFromEmail", label: "From Email", type: "email", hint: "noreply@example.com (optional)" },
                 ] as { key: keyof typeof smtpSettings; label: string; type: string; hint: string }[]).map(({ key, label, type, hint }) => (
                   <div key={key}>
                     <label className="block text-sm font-medium text-gray-300 mb-1">{label}</label>
@@ -764,14 +800,12 @@ const Settings = () => {
                 <button
                   type="button"
                   onClick={() => setSmtpSettings((p) => ({ ...p, smtpSecure: !p.smtpSecure }))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/70 ${
-                    smtpSettings.smtpSecure ? "bg-red-600" : "bg-gray-700"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/70 ${smtpSettings.smtpSecure ? "bg-red-600" : "bg-gray-700"
+                    }`}
                   aria-pressed={smtpSettings.smtpSecure}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
-                    smtpSettings.smtpSecure ? "translate-x-6" : "translate-x-1"
-                  }`} />
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-200 ${smtpSettings.smtpSecure ? "translate-x-6" : "translate-x-1"
+                    }`} />
                 </button>
               </div>
 

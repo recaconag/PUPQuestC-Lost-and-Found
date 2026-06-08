@@ -1,4 +1,7 @@
 import prisma from "../../config/prisma";
+import { JwtPayload } from "jsonwebtoken";
+import AppError from "../../global/error";
+import { StatusCodes } from "http-status-codes";
 
 const SETTINGS_ID = "singleton";
 
@@ -49,7 +52,10 @@ const updateSettings = async (data: {
   smtpSecure?: boolean;
   smtpFromName?: string;
   smtpFromEmail?: string;
-}) => {
+}, user: JwtPayload) => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
   await getSettings();
   return prisma.systemSettings.update({
     where: { id: SETTINGS_ID },

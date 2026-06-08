@@ -8,7 +8,7 @@ const slides = [
   {
     eyebrow: "PUPQC LOST & FOUND",
     title: "Lost Something?",
-    titleAccent: "",
+    titleAccent: "Something?",
     description:
       "Report missing items and check found belongings within the PUPQC campus.",
     primary: { text: "Report Lost Item", href: "/reportlostItem", requiresAuth: true },
@@ -17,7 +17,7 @@ const slides = [
   {
     eyebrow: "ITEM REPORT TRACKING",
     title: "Track Your Reports",
-    titleAccent: "",
+    titleAccent: "Your Reports",
     description:
       "Check updates on your submitted lost or found item reports anytime.",
     primary: { text: "View Lost Reports", href: "/dashboard/myLostItems", requiresAuth: true },
@@ -25,12 +25,13 @@ const slides = [
   },
   {
     eyebrow: "CAMPUS LOST & FOUND",
-    title: "Helping Students Recover Items",
-    titleAccent: "",
+    title: "Helping Students\nRecover Items",
+    titleAccent: "Recover Items",
     description:
       "A simple system for reporting, browsing, and claiming lost belongings in PUPQC.",
     primary: { text: "Get Started", href: "/lostItems", requiresAuth: false },
     secondary: { text: "Learn More", href: "/#aboutUs", requiresAuth: false },
+    accentBoost: true,
   },
 ];
 
@@ -49,20 +50,32 @@ const Banner = () => {
 
   const slide = slides[currentSlide];
 
-  const renderTitle = (title: string, accent: string) => {
-    const parts = title.split("\n");
-    return parts.map((line, i) => {
-      const isAccentLine = line === accent;
+  const renderTitle = (title: string, accent: string, accentBoost?: boolean) => {
+    const lines = title.split("\n");
+    return lines.map((line, i) => {
+      if (!accent || !line.includes(accent)) {
+        return (
+          <span key={i} className="block">
+            {line}
+          </span>
+        );
+      }
+
+      const [before, after] = line.split(accent);
+
       return (
-        <span key={i}>
-          {isAccentLine ? (
-            <span className="bg-gradient-to-r from-red-500 to-yellow-500 bg-clip-text text-transparent">
-              {line}
-            </span>
-          ) : (
-            line
-          )}
-          {i < parts.length - 1 && <br />}
+        <span key={i} className="block">
+          {before}
+          <span
+            className={[
+              "bg-gradient-to-r from-orange-400 via-red-500 to-yellow-400 bg-clip-text text-transparent",
+              "font-extrabold",
+              accentBoost ? "inline-block text-[1.06em] sm:text-[1.1em] md:text-[1.14em]" : "",
+            ].join(" ")}
+          >
+            {accent}
+          </span>
+          {after}
         </span>
       );
     });
@@ -104,7 +117,7 @@ const Banner = () => {
             key={currentSlide}
             className="mb-6 text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-tight text-white"
           >
-            {renderTitle(slide.title, slide.titleAccent)}
+            {renderTitle(slide.title, slide.titleAccent, (slide as any).accentBoost)}
           </h1>
 
           {/* DESCRIPTION */}

@@ -40,7 +40,7 @@ const toggleFoundStatus = async (id: string) => {
   return result;
 };
 
-const createLostItem = async (userId: string, item: LostItem) => {
+const createLostItem = async (userId: string, item: any) => {
   const settings = await systemSettingsService.getSettings();
   const approvalStatus = settings.requireItemApproval ? "PENDING" : "PUBLISHED";
 
@@ -49,11 +49,12 @@ const createLostItem = async (userId: string, item: LostItem) => {
       lostItemName: item.lostItemName,
       description: item.description,
       categoryId: item.categoryId,
-      img: item.img,
+      img: item.img || "",
       location: item.location,
       date: new Date(item.date),
       userId,
       approvalStatus,
+      aiTags: item.aiTags || null,
     },
     include: {
       user: {
@@ -133,7 +134,10 @@ const editMyLostItem = async (data: any, user: JwtPayload) => {
   });
 
   if (!isExist) {
-    throw new AppError(StatusCodes.FORBIDDEN, "You are not authorized to edit this item");
+    throw new AppError(
+      StatusCodes.FORBIDDEN,
+      "You are not authorized to edit this item",
+    );
   }
 
   if (updateData.date) {
@@ -143,9 +147,9 @@ const editMyLostItem = async (data: any, user: JwtPayload) => {
   const result = await prisma.lostItem.update({
     where: { id },
     data: updateData,
-    include: { 
-      user: { select: { id: true, name: true, email: true, userImg: true } }, 
-      category: true 
+    include: {
+      user: { select: { id: true, name: true, email: true, userImg: true } },
+      category: true,
     },
   });
   return result;
@@ -161,7 +165,10 @@ const deleteMyLostItem = async (id: string, user: JwtPayload) => {
 
   // Admin OR Owner can delete
   if (user.role !== "ADMIN" && isExist.userId !== user.id) {
-    throw new AppError(StatusCodes.FORBIDDEN, "You are not authorized to delete this item");
+    throw new AppError(
+      StatusCodes.FORBIDDEN,
+      "You are not authorized to delete this item",
+    );
   }
 
   const result = await prisma.lostItem.update({
@@ -173,19 +180,59 @@ const deleteMyLostItem = async (id: string, user: JwtPayload) => {
   });
   return result;
 };
-const getAllLostItemsAdmin = async () => {
-  return prisma.lostItem.findMany({
-    where: { isDeleted: false },
-    orderBy: { createdAt: "desc" },
-    include: {
-      user: { select: { id: true, name: true, email: true, userImg: true } },
-      category: true,
+const getAllLostItemsAdmin = async (user: JwtPayload, page: number = 1, limit: number = 10, search: string = "") => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
+
+  const skip = (page - 1) * limit;
+
+  const where: any = { isDeleted: false };
+
+  if (search) {
+    where.OR = [
+      { lostItemName: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+      { location: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  const [data, total] = await Promise.all([
+    prisma.lostItem.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: { select: { id: true, name: true, email: true, userImg: true } },
+        category: true,
+      },
+      skip,
+      take: limit,
+    }),
+    prisma.lostItem.count({
+      where,
+    }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    data,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages,
     },
-  });
+  };
 };
 
-const approveLostItem = async (id: string) => {
-  const item = await prisma.lostItem.findFirst({ where: { id, isDeleted: false } });
+const approveLostItem = async (id: string, user: JwtPayload) => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
+  const item = await prisma.lostItem.findFirst({
+    where: { id, isDeleted: false },
+  });
   if (!item) throw new AppError(StatusCodes.NOT_FOUND, "Lost item not found.");
   return prisma.lostItem.update({
     where: { id },

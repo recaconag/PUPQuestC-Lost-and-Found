@@ -3,6 +3,7 @@ import AppError from "../../global/error";
 import prisma from "../../config/prisma";
 import { StatusCodes } from "http-status-codes";
 import { sendOtpEmail, validateSmtpConfig } from "../../utils/emailService";
+import { JwtPayload } from "jsonwebtoken";
 
 const generateOtp = (): string =>
   Math.floor(100000 + Math.random() * 900000).toString();
@@ -125,29 +126,65 @@ const resendOtp = async (email: string) => {
   await sendOtpEmail(email, otp);
 };
 
-const allUsers = async () => {
-  const result = await prisma.user.findMany({
-    where: {
-      isDeleted: false,
+const allUsers = async (user: JwtPayload, page: number = 1, limit: number = 10, search: string = "") => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
+
+  const skip = (page - 1) * limit;
+
+  const where: any = {
+    isDeleted: false,
+  };
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  const [data, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        activated: true,
+        userImg: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip,
+      take: limit,
+    }),
+    prisma.user.count({
+      where,
+    }),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    data,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages,
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      activated: true,
-      userImg: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-  return result;
+  };
 };
 
-const blockUser = async (id: string) => {
+const blockUser = async (id: string, user: JwtPayload) => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
   const userExists = await prisma.user.findUnique({ where: { id } });
   if (!userExists) {
     throw new AppError(StatusCodes.NOT_FOUND, "User account not found");
@@ -182,7 +219,10 @@ const blockUser = async (id: string) => {
   }
 };
 
-const changeUserRole = async (id: string, role: string) => {
+const changeUserRole = async (id: string, role: string, user: JwtPayload) => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
   const updatedUser = await prisma.user.update({
     where: {
       id,
@@ -202,16 +242,19 @@ const changeUserRole = async (id: string, role: string) => {
   };
 };
 
-const softDeleteUser = async (id: string) => {
-  const user = await prisma.user.findUnique({
+const softDeleteUser = async (id: string, user: JwtPayload) => {
+  if (user.role !== "ADMIN") {
+    throw new AppError(StatusCodes.FORBIDDEN, "Access denied. Admin role required.");
+  }
+  const userRecord = await prisma.user.findUnique({
     where: { id },
   });
 
-  if (!user) {
+  if (!userRecord) {
     throw new AppError(404, "User not found");
   }
 
-  if (user.isDeleted) {
+  if (userRecord.isDeleted) {
     throw new AppError(400, "User is already deleted");
   }
 
@@ -226,7 +269,7 @@ const softDeleteUser = async (id: string) => {
 
   return {
     id: updatedUser.id,
-    email: user.email,
+    email: userRecord.email,
     deleted: true,
     deletedAt: updatedUser.deletedAt,
   };

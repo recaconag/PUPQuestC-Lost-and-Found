@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { StatusCodes } from "http-status-codes";
 import sendResponse from "../../global/response";
 import { buildTransporter } from "../../utils/emailService";
+import { sendErrorResponse } from "../../utils/errorResponse";
 
 const testEmail = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -16,20 +17,20 @@ const testEmail = async (req: Request, res: Response, next: NextFunction) => {
     } = req.body;
 
     if (!smtpUser || !smtpPass) {
-      res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: "SMTP username and password are required to send a test email.",
-      });
-      return;
+      return sendErrorResponse(
+        res,
+        StatusCodes.BAD_REQUEST,
+        "SMTP username and password are required to send a test email."
+      );
     }
 
     const creds = {
-      host:      smtpHost      || "smtp.gmail.com",
-      port:      Number(smtpPort) || 587,
-      user:      smtpUser,
-      pass:      smtpPass,
-      secure:    Boolean(smtpSecure),
-      fromName:  smtpFromName  || "PUPQuestC Support",
+      host: smtpHost || "smtp.gmail.com",
+      port: Number(smtpPort) || 587,
+      user: smtpUser,
+      pass: smtpPass,
+      secure: Boolean(smtpSecure),
+      fromName: smtpFromName || "PUPQuestC Support",
       fromEmail: smtpFromEmail || smtpUser,
     };
 
@@ -104,16 +105,13 @@ const testEmail = async (req: Request, res: Response, next: NextFunction) => {
     });
   } catch (error: any) {
     const message =
-      error?.code === "EAUTH"    ? "Authentication failed. Check your username and password (use an App Password for Gmail)." :
-      error?.code === "ECONNREFUSED" ? `Connection refused. Check that ${req.body.smtpHost}:${req.body.smtpPort} is correct and reachable.` :
-      error?.code === "ETIMEDOUT"    ? "Connection timed out. The SMTP host may be unreachable or blocked by a firewall." :
-      error?.responseCode === 535    ? "Invalid credentials (535). For Gmail, generate an App Password at myaccount.google.com/security." :
-      error?.message || "Unknown SMTP error.";
+      error?.code === "EAUTH" ? "Authentication failed. Check your username and password (use an App Password for Gmail)." :
+        error?.code === "ECONNREFUSED" ? `Connection refused. Check that ${req.body.smtpHost}:${req.body.smtpPort} is correct and reachable.` :
+          error?.code === "ETIMEDOUT" ? "Connection timed out. The SMTP host may be unreachable or blocked by a firewall." :
+            error?.responseCode === 535 ? "Invalid credentials (535). For Gmail, generate an App Password at myaccount.google.com/security." :
+              error?.message || "Unknown SMTP error.";
 
-    res.status(StatusCodes.BAD_GATEWAY).json({
-      success: false,
-      message,
-    });
+    return sendErrorResponse(res, StatusCodes.BAD_GATEWAY, message);
   }
 };
 

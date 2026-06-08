@@ -1,39 +1,44 @@
-import { useState } from "react";
-import { FaEye, FaSearch, FaCheck, FaTimes } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import { FaEye, FaSearch, FaCheck, FaTimes, FaQrcode } from "react-icons/fa";
 import {
   useGetAllClaimsQuery,
   useUpdateClaimStatusMutation,
+  useGenerateClaimQRMutation,
 } from "../../redux/api/api";
+import ConfirmDialog from "../../components/modal/ConfirmDialog";
+import EmptyState from "../../components/shared/EmptyState";
+import { formatDate } from "../../utils/formatDate";
 
 const ClaimsManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<any>(null);
   const [newStatus, setNewStatus] = useState("");
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [claimToReject, setClaimToReject] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
 
-  const { data: allClaims, isLoading } = useGetAllClaimsQuery(undefined);
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1); // Reset to page 1 when search changes
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const { data: allClaims, isLoading } = useGetAllClaimsQuery({ page, limit, search: debouncedSearch });
   const [updateClaimStatus, { isLoading: isStatusLoading }] = useUpdateClaimStatusMutation();
+  const [generateClaimQR, { isLoading: isQrGenerating }] = useGenerateClaimQRMutation();
 
   const claims = allClaims?.data || [];
-
-  const filteredClaims = claims.filter((claim: any) => {
-    const matchesSearch =
-      claim.foundItem?.foundItemName
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      claim.foundItem?.user?.name
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      claim.foundItem?.user?.email
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "ALL" || claim.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
+  const pagination = allClaims?.meta;
 
   const handleStatusChange = (claimId: string, status: string) => {
     const claim = claims.find((claim: any) => claim.id === claimId);
@@ -67,6 +72,49 @@ const ClaimsManagement = () => {
     setSelectedClaim(null);
     setNewStatus("");
     setStatusError(null);
+  };
+
+  const handleApproveClaim = async (claimId: string) => {
+    try {
+      const result = await generateClaimQR(claimId).unwrap();
+      if (result?.data?.qrCodeImage) {
+        setQrCodeImage(result.data.qrCodeImage);
+        setIsQrModalOpen(true);
+      }
+    } catch (err: any) {
+      console.error("[ClaimsManagement] generateClaimQR failed:", err);
+      setStatusError(
+        err?.data?.message ?? "Failed to generate QR code. Please try again."
+      );
+    }
+  };
+
+  const handleRejectClaim = (claimId: string) => {
+    setClaimToReject(claimId);
+    setIsRejectDialogOpen(true);
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!claimToReject) return;
+    setIsRejectDialogOpen(false);
+    try {
+      await updateClaimStatus({
+        claimId: claimToReject,
+        status: "REJECTED",
+      }).unwrap();
+    } catch (err: any) {
+      console.error("[ClaimsManagement] rejectClaim failed:", err);
+      setStatusError(
+        err?.data?.message ?? "Failed to reject claim. Please try again."
+      );
+    } finally {
+      setClaimToReject(null);
+    }
+  };
+
+  const handleRejectCancel = () => {
+    setIsRejectDialogOpen(false);
+    setClaimToReject(null);
   };
 
   const handleBulkApprove = async () => {
@@ -105,13 +153,11 @@ const ClaimsManagement = () => {
         return "bg-emerald-900/40 text-emerald-300 border border-emerald-600/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]";
       case "REJECTED":
         return "bg-red-900/40 text-red-300 border border-red-700/40";
+      case "CLAIMED":
+        return "bg-blue-900/40 text-blue-300 border border-blue-700/40 shadow-[0_0_8px_rgba(59,130,246,0.2)]";
       default:
         return "bg-gray-700/50 text-gray-300 border border-gray-600/40";
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
   };
 
   if (isLoading) {
@@ -135,7 +181,7 @@ const ClaimsManagement = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-red-600 to-yellow-500 bg-clip-text text-transparent">
-          Claims Management
+            Claims Management
           </h1>
           <p className="text-gray-400 mt-1">Review and manage item claims</p>
         </div>
@@ -260,16 +306,19 @@ const ClaimsManagement = () => {
                   Category
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
-                  Claim Details
+                  Proof Details
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
-                  Found By
+                  Claimant
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Lost Date
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Status
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -305,20 +354,20 @@ const ClaimsManagement = () => {
                   <td className="px-6 py-4">
                     <div className="max-w-xs">
                       <div className="text-white text-sm font-medium mb-1">
-                        Distinguishing Features:
+                        Proof Details:
                       </div>
-                      <div className="text-gray-400 text-sm truncate">
-                        {claim.distinguishingFeatures || "No details provided"}
+                      <div className="text-gray-400 text-sm line-clamp-2">
+                        {claim.distinguishingFeatures || "No proof provided"}
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div>
                       <div className="text-white">
-                        {claim.foundItem?.user?.name || claim.foundItem?.user?.email}
+                        {claim.user?.name || claim.user?.email}
                       </div>
                       <div className="text-sm text-gray-400">
-                        {claim.foundItem?.user?.email}
+                        {claim.user?.email}
                       </div>
                     </div>
                   </td>
@@ -326,34 +375,47 @@ const ClaimsManagement = () => {
                     {formatDate(claim.lostDate)}
                   </td>
                   <td className="px-6 py-4">
-                    <select
-                      value={claim.status}
-                      onChange={(e) =>
-                        handleStatusChange(claim.id, e.target.value)
-                      }
-                      className={`px-3 py-1 rounded-lg text-xs font-medium text-white border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500 ${getStatusColor(
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
                         claim.status
                       )}`}
                     >
-                      <option
-                        value="PENDING"
-                        className="bg-gray-800 text-yellow-400"
-                      >
-                        PENDING
-                      </option>
-                      <option
-                        value="APPROVED"
-                        className="bg-gray-800 text-green-400"
-                      >
-                        APPROVED
-                      </option>
-                      <option
-                        value="REJECTED"
-                        className="bg-gray-800 text-red-400"
-                      >
-                        REJECTED
-                      </option>
-                    </select>
+                      {claim.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2">
+                      {claim.status === "PENDING" && (
+                        <>
+                          <button
+                            onClick={() => handleApproveClaim(claim.id)}
+                            disabled={isQrGenerating}
+                            className="inline-flex items-center px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <FaCheck className="mr-1" />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleRejectClaim(claim.id)}
+                            disabled={isStatusLoading}
+                            className="inline-flex items-center px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <FaTimes className="mr-1" />
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {claim.status === "APPROVED" && (
+                        <button
+                          onClick={() => handleApproveClaim(claim.id)}
+                          disabled={isQrGenerating}
+                          className="inline-flex items-center px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <FaQrcode className="mr-1" />
+                          Regenerate QR
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -361,12 +423,55 @@ const ClaimsManagement = () => {
           </table>
         </div>
 
-        {filteredClaims.length === 0 && (
-          <div className="text-center py-12">
-            <FaSearch className="mx-auto text-4xl text-gray-500 mb-4" />
-            <p className="text-gray-400">
-              No claims found matching your criteria
-            </p>
+        {claims.length === 0 && (
+          <EmptyState
+            icon={<FaSearch className="w-full h-full" />}
+            title="No Claims Found"
+            description={
+              debouncedSearch
+                ? "No claims match your search criteria. Try adjusting your search terms."
+                : "No claims have been submitted yet. Claims will appear here when users report found items."
+            }
+            action={
+              debouncedSearch ? (
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                  }}
+                  className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Clear Search
+                </button>
+              ) : null
+            }
+          />
+        )}
+
+        {/* Pagination Controls */}
+        {pagination && pagination.totalPage > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-700">
+            <div className="text-sm text-gray-400">
+              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} claims
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={pagination.page === 1}
+                className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-400">
+                Page {pagination.page} of {pagination.totalPage}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(pagination.totalPage, p + 1))}
+                disabled={pagination.page === pagination.totalPage}
+                className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -485,6 +590,73 @@ const ClaimsManagement = () => {
           </div>
         </div>
       )}
+
+      {/* QR Code Modal */}
+      {isQrModalOpen && qrCodeImage && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card rounded-xl p-8 w-full max-w-md mx-4">
+            <div className="text-center">
+              <div className="mb-6">
+                <div className="bg-green-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                  <FaQrcode className="text-green-600 text-2xl" />
+                </div>
+                <h2 className="text-xl font-bold gold-text mb-2">
+                  Claim Approved - QR Code Generated
+                </h2>
+                <p className="text-gray-400 mb-6">
+                  Share this QR code with the claimant. They will need to present it at the property office for item pickup.
+                </p>
+              </div>
+
+              <div className="bg-white rounded-lg p-6 mb-6">
+                <img
+                  src={qrCodeImage}
+                  alt="Claim QR Code"
+                  className="w-full h-auto"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQrModalOpen(false);
+                    setQrCodeImage(null);
+                  }}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = qrCodeImage;
+                    link.download = `claim-qr-${selectedClaim?.id}.png`;
+                    link.click();
+                  }}
+                  className="flex-1 bg-red-700 hover:bg-red-800 text-white py-3 px-4 rounded-lg transition-all duration-200 font-medium border border-red-600/50"
+                >
+                  Download QR
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isRejectDialogOpen}
+        onClose={handleRejectCancel}
+        onConfirm={handleRejectConfirm}
+        title="Reject Claim"
+        message="Are you sure you want to reject this claim? This action cannot be undone."
+        confirmText="Reject"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isStatusLoading}
+      />
     </div>
   );
 };

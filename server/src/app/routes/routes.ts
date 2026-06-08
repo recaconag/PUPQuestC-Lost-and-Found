@@ -43,64 +43,105 @@ import { aiSearchController } from "../modules/aiSearch/aiSearch.controller";
 import { aiSearchValidation } from "../modules/aiSearch/aiSearch.validate";
 import { systemSettingsController } from "../modules/systemSettings/systemSettings.controller";
 import { testEmailController } from "../modules/systemSettings/testEmail.controller";
+import { SystemSettingsSchema } from "../modules/systemSettings/systemSettings.validate";
+import rateLimit from "express-rate-limit";
 
 const router = express.Router();
+
+// Rate limiters for authentication endpoints
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // max 5 attempts per window
+  message: "Too many login attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const registrationRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // max 10 attempts per window
+  message: "Too many registration attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const otpRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 3, // max 3 attempts per window
+  message: "Too many OTP requests. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Temporary dynamic service matrix endpoints para hindi mag-error ang dashboard elements
+router.get("/services", (_req, res) => {
+  res.json({ success: true, data: [] });
+});
+
+router.get("/faqs", (_req, res) => {
+  res.json({ success: true, data: [] });
+});
 ////////////////////////////////////////////////// user //////////////////////////////////////////////
 // user registration (accepts multipart/form-data for optional profile photo)
 router.post(
   "/register",
+  registrationRateLimiter,
   upload.single("idPicture"),
   (req, _res, next) => {
     if (req.file) {
       const serverUrl =
-        process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`;
+        process.env.SERVER_URL ||
+        `http://localhost:${process.env.PORT || 5000}`;
       req.body.idPicture = `${serverUrl}/uploads/${req.file.filename}`;
     }
     next();
   },
   validateRequest(UserSchema.userRegisterSchema),
-  userController.registerUser
+  userController.registerUser,
 );
 
 //get users
 router.get(
   "/users",
-  // auth("USER", "ADMIN"),
-  userController.allUsers
+  auth("ADMIN"),
+  userController.allUsers,
 );
 
 // user login
 router.post(
   "/login",
+  loginRateLimiter,
   validateRequest(UserSchema.userLoginSchema),
-  authController.login
+  authController.login,
 );
 
 // email OTP verification
-router.post("/verify-otp", userController.verifyOtp);
+router.post("/verify-otp", otpRateLimiter, userController.verifyOtp);
 
 // resend OTP
-router.post("/resend-otp", userController.resendOtp);
+router.post("/resend-otp", otpRateLimiter, userController.resendOtp);
 
 // forgot password — send recovery OTP
 router.post(
   "/forgot-password",
+  otpRateLimiter,
   validateRequest(UserSchema.forgotPasswordSchema),
-  authController.forgotPassword
+  authController.forgotPassword,
 );
 
 // verify recovery OTP
 router.post(
   "/verify-recovery-otp",
+  otpRateLimiter,
   validateRequest(UserSchema.verifyRecoveryOtpSchema),
-  authController.verifyRecoveryOtp
+  authController.verifyRecoveryOtp,
 );
 
 // reset password
 router.post(
   "/reset-password",
   validateRequest(UserSchema.resetPasswordSchema),
-  authController.resetPassword
+  authController.resetPassword,
 );
 
 // verify 2FA OTP (second step of login when 2FA is enabled)
@@ -111,20 +152,20 @@ router.post(
   "/change-password",
   auth("USER", "ADMIN"),
   validateRequest(UserSchema.changePasswordSchema),
-  authController.newPasswords
+  authController.newPasswords,
 );
 // change email
 router.post(
   "/change-email",
   auth("USER", "ADMIN"),
   validateRequest(UserSchema.changeEmailSchema),
-  authController.changeEmail
+  authController.changeEmail,
 );
 // update profile image
 router.patch(
   "/update-profile-image",
   auth("USER", "ADMIN"),
-  authController.updateProfileImage
+  authController.updateProfileImage,
 );
 
 // update profile name
@@ -132,7 +173,7 @@ router.patch(
   "/update-profile-name",
   auth("USER", "ADMIN"),
   validateRequest(UserSchema.updateProfileNameSchema),
-  authController.updateProfileName
+  authController.updateProfileName,
 );
 ///////////////////////////////////////////////////found item//////////////////////////////////////////////
 // category create
@@ -140,7 +181,7 @@ router.post(
   "/item-categories",
   auth("ADMIN"),
   validateRequest(FoundItemCategorySchema.createItemCategory),
-  itemcategoryController.createItemCategory
+  itemcategoryController.createItemCategory,
 );
 
 // category get (Public)
@@ -151,33 +192,34 @@ router.put(
   "/item-categories/:id",
   auth("ADMIN"),
   validateRequest(FoundItemCategorySchema.updateItemCategory),
-  itemcategoryController.updateItemCategory
+  itemcategoryController.updateItemCategory,
 );
 
 // category delete
 router.delete(
   "/item-categories/:id",
   auth("ADMIN"),
-  itemcategoryController.deleteItemCategory
+  itemcategoryController.deleteItemCategory,
 );
 // found item create
 router.post(
   "/found-items",
+  upload.single("image"),
   validateRequest(FoundItemSchema.createFoundItem),
   auth("USER", "ADMIN"),
-  foundItemController.createFoundItem
+  foundItemController.createFoundItem,
 );
 // found item get
 router.get("/found-items", foundItemController.getFoundItem);
 // single found item get
-router.get("/found-item/:id", foundItemController.getSingleFoundItem);
+router.get("/found-items/:id", foundItemController.getSingleFoundItem);
 ///////////////////////////////////////////////////claim//////////////////////////////////////////////
 // claim create
 router.post(
   "/claims",
   validateRequest(ItemClaimSchema.createClaim),
   auth("USER", "ADMIN"),
-  claimsController.createClaim
+  claimsController.createClaim,
 );
 
 // claims get all
@@ -191,18 +233,38 @@ router.put(
   "/claims/:claimId",
   auth("ADMIN"),
   validateRequest(ItemClaimSchema.updateClaim),
-  claimsController.updateClaimStatus
+  claimsController.updateClaimStatus,
+);
+
+// =========================================================================
+// 🎫 NEW: QR CODE VERIFICATION & CLAIM TURNOVER HANDLER
+// =========================================================================
+router.post(
+  "/claims/generate-qr/:claimId",
+  auth("ADMIN"),
+  claimsController.generateClaimQRCodeImage,
+);
+
+router.post(
+  "/claims/verify-qr/:claimId",
+  auth("ADMIN"),
+  claimsController.verifyClaimQRCodeScanner,
 );
 ///////////////////////////////////////////////////lost item//////////////////////////////////////////////
 
 // lost item mark as found (Toggle status)
-router.put("/lost-items/toggle-status", auth("USER", "ADMIN"), lostItemController.toggleFoundStatus);
+router.put(
+  "/lost-items/toggle-status",
+  auth("USER", "ADMIN"),
+  lostItemController.toggleFoundStatus,
+);
 
 // create lost item
 router.post(
   "/lost-items",
+  upload.single("image"),
   auth("USER", "ADMIN"),
-  lostItemController.createLostItem
+  lostItemController.createLostItem,
 );
 
 // get lost item (Public)
@@ -211,15 +273,38 @@ router.get("/lost-items", lostItemController.getLostItem);
 // get single lost item (Public)
 router.get("/lost-items/:id", lostItemController.getSingleLostItem);
 // My Personal Reports
-router.get("/my/lost-items", auth("USER", "ADMIN"), lostItemController.getMyLostItem);
-router.get("/my/found-items", auth("USER", "ADMIN"), foundItemController.getMyFoundItem);
+router.get(
+  "/my/lost-items",
+  auth("USER", "ADMIN"),
+  lostItemController.getMyLostItem,
+);
+router.get(
+  "/my/found-items",
+  auth("USER", "ADMIN"),
+  foundItemController.getMyFoundItem,
+);
 
-router.put("/my/lost-items", auth("USER", "ADMIN"), lostItemController.editMyLostItem);
-router.put("/my/found-items", auth("USER", "ADMIN"), foundItemController.editMyFoundItem);
+router.put(
+  "/my/lost-items",
+  auth("USER", "ADMIN"),
+  lostItemController.editMyLostItem,
+);
+router.put(
+  "/my/found-items",
+  auth("USER", "ADMIN"),
+  foundItemController.editMyFoundItem,
+);
 
-router.delete("/my/lost-items/:id", auth("USER", "ADMIN"), lostItemController.deleteMyLostItem);
-router.delete("/my/found-items/:id", auth("USER", "ADMIN"), foundItemController.deleteMyFoundItem);
-
+router.delete(
+  "/my/lost-items/:id",
+  auth("USER", "ADMIN"),
+  lostItemController.deleteMyLostItem,
+);
+router.delete(
+  "/my/found-items/:id",
+  auth("USER", "ADMIN"),
+  foundItemController.deleteMyFoundItem,
+);
 
 // get stats for admin
 router.get("/admin/stats", auth("ADMIN"), adminStats);
@@ -233,32 +318,76 @@ router.put("/change-role/:id", auth("ADMIN"), userController.changeUserRole);
 // soft delete user
 router.delete("/delete-user/:id", auth("ADMIN"), userController.softDeleteUser);
 
-// image upload
+// =========================================================================
+// 🎨 FOR REPORT FORMS: Saluhin ang regular image attachment updates ng forms
+// =========================================================================
 router.post(
   "/upload",
   auth("USER", "ADMIN"),
   upload.single("image"),
-  uploadController.uploadImage
+  uploadController.uploadAndAnalyzeImageAI,
 );
 
-// AI search
+// =========================================================================
+// 🧠 FOR AI SEARCH MODULE: Saluhin ang dynamic upload-ai target ng Redux actions
+// =========================================================================
+router.post(
+  "/upload-ai",
+  auth("USER", "ADMIN"),
+  upload.single("image"),
+  uploadController.uploadAndAnalyzeImageAI,
+);
+
+// AI search — text query (public)
 router.post(
   "/ai-search",
   validateRequest(aiSearchValidation.aiSearchSchema),
-  aiSearchController.aiSearch
+  aiSearchController.aiSearch,
+);
+
+// AI search — image query (authenticated; base64 image in request body)
+router.post(
+  "/ai-search/image",
+  auth("USER", "ADMIN"),
+  aiSearchController.aiImageSearch,
 );
 
 // System settings (admin only)
-router.get("/admin/system-settings", auth("ADMIN"), systemSettingsController.getSettings);
-router.put("/admin/system-settings", auth("ADMIN"), systemSettingsController.updateSettings);
+router.get(
+  "/admin/system-settings",
+  auth("ADMIN"),
+  systemSettingsController.getSettings,
+);
+router.put(
+  "/admin/system-settings",
+  auth("ADMIN"),
+  validateRequest(SystemSettingsSchema.updateSettingsSchema),
+  systemSettingsController.updateSettings,
+);
 router.post("/admin/test-email", auth("ADMIN"), testEmailController.testEmail);
 
 // Admin: get ALL items (including PENDING/expired) for management dashboard
-router.get("/admin/all-items/found", auth("ADMIN"), foundItemController.getAllFoundItemsAdmin);
-router.get("/admin/all-items/lost", auth("ADMIN"), lostItemController.getAllLostItemsAdmin);
+router.get(
+  "/admin/all-items/found",
+  auth("ADMIN"),
+  foundItemController.getAllFoundItemsAdmin,
+);
+router.get(
+  "/admin/all-items/lost",
+  auth("ADMIN"),
+  lostItemController.getAllLostItemsAdmin,
+);
 
 // Approve items (admin only)
-router.put("/admin/approve/found/:id", auth("ADMIN"), foundItemController.approveFoundItem);
-router.put("/admin/approve/lost/:id", auth("ADMIN"), lostItemController.approveLostItem);
+router.put(
+  "/admin/approve/found/:id",
+  auth("ADMIN"),
+  foundItemController.approveFoundItem,
+);
+router.put(
+  "/admin/approve/lost/:id",
+  auth("ADMIN"),
+  lostItemController.approveLostItem,
+);
 
 export default router;

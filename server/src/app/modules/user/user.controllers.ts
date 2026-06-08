@@ -24,7 +24,7 @@ const registerUser = async (
 const blockUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id;
-    const result = await userService.blockUser(id);
+    const result = await userService.blockUser(id, req.user);
 
     if (result == "active") {
       sendResponse(res, {
@@ -53,7 +53,7 @@ const changeUserRole = async (
   try {
     const id = req.params.id;
     const { role } = req.body;
-    const result = await userService.changeUserRole(id, role);
+    const result = await userService.changeUserRole(id, role, req.user);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
@@ -71,7 +71,7 @@ const softDeleteUser = async (
 ) => {
   try {
     const id = req.params.id;
-    const result = await userService.softDeleteUser(id);
+    const result = await userService.softDeleteUser(id, req.user);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
@@ -114,12 +114,21 @@ const resendOtp = async (req: Request, res: Response, next: NextFunction) => {
 
 const allUsers = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await userService.allUsers();
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = (req.query.search as string) || "";
+    const result = await userService.allUsers(req.user, page, limit, search);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
       message: "User retrieved successfully",
-      data: result,
+      data: result.data,
+      meta: {
+        total: result.pagination.total,
+        page: result.pagination.page,
+        limit: result.pagination.limit,
+        totalPage: result.pagination.totalPages,
+      },
     });
   } catch (error: any) {
     next(error);

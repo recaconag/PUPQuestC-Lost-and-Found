@@ -4,6 +4,7 @@ import type { lostItem } from "../../types/types";
 import { useGetLostItemsQuery } from "../../redux/api/api";
 import { FaCalendarAlt, FaMapMarkerAlt, FaExclamationTriangle } from "react-icons/fa";
 import EmptyState from "../shared/EmptyState";
+import { formatDate } from "../../utils/formatDate";
 
 const RecentLostItem = () => {
   const { data: lostItems, isLoading } = useGetLostItemsQuery({});
@@ -45,7 +46,7 @@ const RecentLostItem = () => {
           </h2>
 
           <p className="text-gray-400 text-lg">
-            These are the latest reported lost items
+            Browse reported lost items within the PUPQC campus.
           </p>
         </div>
 
@@ -109,7 +110,7 @@ const RecentLostItem = () => {
                   <div className="flex items-center gap-2 text-gray-400">
                     <FaCalendarAlt className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
                     <span className="text-gray-200">
-                      {item?.date ? String(item.date).split("T")[0] : "No date"}
+                      {formatDate(item?.date) || "No date"}
                     </span>
                   </div>
 

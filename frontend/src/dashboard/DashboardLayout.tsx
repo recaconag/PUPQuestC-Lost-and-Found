@@ -17,6 +17,7 @@ import {
   FaSignOutAlt,
   FaUser,
   FaList,
+  FaQrcode,
 } from "react-icons/fa";
 import { useUserVerification, signOut } from "../auth/auth";
 import { useTranslation } from "react-i18next";
@@ -65,6 +66,13 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       title: t("sidebar.claims"),
       icon: <FaClipboardList />,
       path: "/dashboard/claims",
+      adminOnly: true,
+      badge: null,
+    },
+    {
+      title: "QR Scanner",
+      icon: <FaQrcode />,
+      path: "/dashboard/qr-scanner",
       adminOnly: true,
       badge: null,
     },
@@ -143,9 +151,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
       {/* Sidebar */}
       <div
-        className={`fixed top-0 left-0 h-full glass-panel z-50 transition-all duration-200 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0 ${sidebarCollapsed ? "lg:w-20" : "lg:w-64"} w-64`}
+        className={`fixed top-0 left-0 h-full glass-panel z-50 transition-all duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } lg:translate-x-0 ${sidebarCollapsed ? "lg:w-20" : "lg:w-64"} w-64`}
       >
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-yellow-700/20">
@@ -167,6 +174,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden text-gray-400 hover:text-white p-2"
+            aria-label="Close sidebar"
           >
             <FaTimes />
           </button>
@@ -175,6 +183,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="hidden lg:block text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-700 transition-colors"
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
           </button>
@@ -188,16 +197,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 key={index}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center px-3 py-3 rounded-lg transition-all duration-200 group relative ${
-                  isActive(item.path)
-                    ? "bg-red-900/20 text-yellow-500 border-l-[3px] border-yellow-500 animate-gold-pulse"
-                    : "text-gray-400 hover:bg-gray-800/60 hover:text-white"
-                }`}
+                className={`flex items-center px-3 py-3 rounded-lg transition-all duration-200 group relative ${isActive(item.path)
+                  ? "bg-red-900/20 text-yellow-500 border-l-[3px] border-yellow-500 animate-gold-pulse"
+                  : "text-gray-400 hover:bg-gray-800/60 hover:text-white"
+                  }`}
               >
                 <div
-                  className={`flex-shrink-0 ${
-                    sidebarCollapsed ? "mx-auto" : "mr-3"
-                  }`}
+                  className={`flex-shrink-0 ${sidebarCollapsed ? "mx-auto" : "mr-3"
+                    }`}
                 >
                   {item.icon}
                 </div>
@@ -238,9 +245,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               className="flex items-center px-3 py-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-all duration-200 group relative"
             >
               <div
-                className={`flex-shrink-0 ${
-                  sidebarCollapsed ? "mx-auto" : "mr-3"
-                }`}
+                className={`flex-shrink-0 ${sidebarCollapsed ? "mx-auto" : "mr-3"
+                  }`}
               >
                 <FaHome />
               </div>
@@ -258,11 +264,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <button
               onClick={handleSignOut}
               className="w-full flex items-center px-3 py-3 rounded-lg text-gray-300 hover:bg-red-600 hover:text-white transition-all duration-200 group relative"
+              aria-label={t("sidebar.signOut")}
             >
               <div
-                className={`flex-shrink-0 ${
-                  sidebarCollapsed ? "mx-auto" : "mr-3"
-                }`}
+                className={`flex-shrink-0 ${sidebarCollapsed ? "mx-auto" : "mr-3"
+                  }`}
               >
                 <FaSignOutAlt />
               </div>
@@ -282,9 +288,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
       {/* Main Content */}
       <div
-        className={`transition-all duration-200 ${
-          sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
-        }`}
+        className={`transition-all duration-200 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
+          }`}
       >
         {/* Top Navbar */}
         <header className="glass-panel border-b border-yellow-600/10 sticky top-0 z-40">
@@ -293,6 +298,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             <button
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden text-gray-300 hover:text-white p-2 rounded-lg hover:bg-gray-700 transition-colors"
+              aria-label="Open menu"
             >
               <FaBars />
             </button>

@@ -1,5 +1,7 @@
 export type Role = "ADMIN" | "USER";
 
+export type ClaimStatus = "PENDING" | "APPROVED" | "REJECTED" | "CLAIMED";
+
 export type decodedUser = {
   id: string;
   email: string;
@@ -50,6 +52,36 @@ export type foundItem = {
   };
   category?: {
     name: string;
+  };
+};
+
+export type Claim = {
+  id: string;
+  userId: string;
+  foundItemId: string;
+  status: ClaimStatus;
+  distinguishingFeatures?: string;
+  lostDate: string;
+  createdAt: string;
+  updatedAt: string;
+  qrCodeToken?: string;
+  user?: {
+    name?: string;
+    email: string;
+  };
+  foundItem?: {
+    id: string;
+    foundItemName: string;
+    description: string;
+    img: string;
+    location: string;
+    user?: {
+      name?: string;
+      email: string;
+    };
+    category?: {
+      name: string;
+    };
   };
 };
 

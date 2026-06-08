@@ -16,6 +16,7 @@ import {
   useDeleteCategoryMutation,
 } from "../../redux/api/api";
 import { FormField } from "../../ui/forms/FormField";
+import EmptyState from "../../components/shared/EmptyState";
 import {
   categoryNameSchema,
   type CategoryNameValues,
@@ -23,6 +24,7 @@ import {
 import { useZodForm } from "../../ui/forms/useZodForm";
 import { PupInput } from "../../ui/PupInput";
 import { PupButton } from "../../ui/PupButton";
+import { formatDate } from "../../utils/formatDate";
 
 interface Category {
   id: string;
@@ -116,16 +118,6 @@ const CategoriesManagement = () => {
     setCategoryToDelete(null);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   if (isLoading) {
     return (
       <div className="p-6">
@@ -217,8 +209,9 @@ const CategoriesManagement = () => {
                 name="name"
                 label="Category name"
                 errors={addForm.formState.errors}
+                required
               >
-                {({ id, hasError }) => (
+                {({ id, hasError, ariaDescribedBy }) => (
                   <PupInput
                     id={id}
                     type="text"
@@ -226,6 +219,8 @@ const CategoriesManagement = () => {
                     disabled={isCreating}
                     {...addForm.register("name")}
                     hasError={hasError}
+                    ariaDescribedBy={ariaDescribedBy}
+                    aria-required="true"
                   />
                 )}
               </FormField>
@@ -382,14 +377,33 @@ const CategoriesManagement = () => {
         </div>
 
         {filteredCategories.length === 0 && (
-          <div className="text-center py-12">
-            <FaBoxOpen className="mx-auto text-4xl text-gray-500 mb-4" />
-            <p className="text-gray-400">
-              {searchTerm
-                ? "No categories found matching your search criteria."
-                : "No categories found. Add one to get started."}
-            </p>
-          </div>
+          <EmptyState
+            icon={<FaBoxOpen className="w-full h-full" />}
+            title="No Categories Found"
+            description={
+              searchTerm
+                ? "No categories match your search criteria. Try adjusting your search terms."
+                : "No categories have been created yet. Categories will appear here when you add them."
+            }
+            action={
+              searchTerm ? (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Clear Search
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  <FaPlus className="mr-2" />
+                  Add Category
+                </button>
+              )
+            }
+          />
         )}
       </div>
 

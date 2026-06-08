@@ -3,13 +3,16 @@ import { cx } from "./cx";
 
 interface Props extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   hasError?: boolean;
+  ariaDescribedBy?: string;
 }
 
 export const PupTextarea = forwardRef<HTMLTextAreaElement, Props>(
-  ({ hasError, className, ...rest }, ref) => (
+  ({ hasError, ariaDescribedBy, className, ...rest }, ref) => (
     <textarea
       ref={ref}
       rows={3}
+      aria-invalid={hasError ? "true" : undefined}
+      aria-describedby={ariaDescribedBy || rest["aria-describedby"]}
       className={cx(
         "w-full rounded-lg border bg-gray-800/50 px-4 py-3 text-sm text-white placeholder-gray-500",
         "transition-all duration-200 resize-none",

@@ -46,10 +46,10 @@ const Register = () => {
   const showDomainWarning = watchedEmail.length > 0 && !isValidWebmail;
 
   const passwordChecks = {
-    length:    watchedPassword.length >= 8,
+    length: watchedPassword.length >= 8,
     uppercase: /[A-Z]/.test(watchedPassword),
-    number:    /[0-9]/.test(watchedPassword),
-    special:   /[^a-zA-Z0-9]/.test(watchedPassword),
+    number: /[0-9]/.test(watchedPassword),
+    special: /[^a-zA-Z0-9]/.test(watchedPassword),
   };
   const allPasswordReqsMet = Object.values(passwordChecks).every(Boolean);
   const showConfirmMismatch =
@@ -132,8 +132,8 @@ const Register = () => {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
 
               {/* Full Name */}
-              <FormField<RegisterValues> name="name" label="Full Name" errors={errors}>
-                {({ id, hasError }) => (
+              <FormField<RegisterValues> name="name" label="Full Name" errors={errors} required>
+                {({ id, hasError, ariaDescribedBy }) => (
                   <div className="relative">
                     <PupInput
                       id={id}
@@ -142,6 +142,8 @@ const Register = () => {
                       placeholder="e.g. Juan Dela Cruz"
                       {...register("name")}
                       hasError={hasError}
+                      ariaDescribedBy={ariaDescribedBy}
+                      aria-required="true"
                       className="pr-10"
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -152,8 +154,8 @@ const Register = () => {
               </FormField>
 
               {/* PUP Webmail */}
-              <FormField<RegisterValues> name="email" label="Official PUP Email" errors={errors}>
-                {({ id, hasError }) => (
+              <FormField<RegisterValues> name="email" label="Official PUP Email" errors={errors} required>
+                {({ id, hasError, ariaDescribedBy }) => (
                   <>
                     <div className="relative">
                       <PupInput
@@ -163,6 +165,8 @@ const Register = () => {
                         placeholder="student@iskolarngbayan.pup.edu.ph"
                         {...register("email")}
                         hasError={hasError || showDomainWarning}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="pr-10"
                       />
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -190,13 +194,12 @@ const Register = () => {
                 <button
                   type="button"
                   onClick={() => idInputRef.current?.click()}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-gray-800/50 backdrop-blur-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500/70 text-left mt-1.5 ${
-                    idError
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-gray-800/50 backdrop-blur-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500/70 text-left mt-1.5 ${idError
                       ? "border-red-600/70"
                       : idFile
-                      ? "border-yellow-500/50 hover:border-yellow-500/70"
-                      : "border-gray-700/60 hover:border-yellow-500/50 hover:bg-gray-700/40"
-                  }`}
+                        ? "border-yellow-500/50 hover:border-yellow-500/70"
+                        : "border-gray-700/60 hover:border-yellow-500/50 hover:bg-gray-700/40"
+                    }`}
                   aria-label="Upload Profile Picture"
                 >
                   {/* Preview */}
@@ -265,8 +268,8 @@ const Register = () => {
 
               {/* Password row — 2 columns */}
               <div className="grid grid-cols-2 gap-3">
-                <FormField<RegisterValues> name="password" label="Password" errors={errors}>
-                  {({ id, hasError }) => (
+                <FormField<RegisterValues> name="password" label="Password" errors={errors} required>
+                  {({ id, hasError, ariaDescribedBy }) => (
                     <div className="relative">
                       <PupInput
                         id={id}
@@ -275,6 +278,8 @@ const Register = () => {
                         placeholder="••••••••"
                         {...register("password")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="pr-10"
                       />
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3">
@@ -291,8 +296,8 @@ const Register = () => {
                   )}
                 </FormField>
 
-                <FormField<RegisterValues> name="conpassword" label="Confirm Password" errors={errors}>
-                  {({ id, hasError }) => (
+                <FormField<RegisterValues> name="conpassword" label="Confirm Password" errors={errors} required>
+                  {({ id, hasError, ariaDescribedBy }) => (
                     <div className="relative">
                       <PupInput
                         id={id}
@@ -301,6 +306,8 @@ const Register = () => {
                         placeholder="••••••••"
                         {...register("conpassword")}
                         hasError={hasError || showConfirmMismatch}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="pr-10"
                       />
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3">
@@ -322,16 +329,15 @@ const Register = () => {
               {watchedPassword.length > 0 && (
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 bg-gray-800/40 border border-gray-700/50 rounded-xl px-3 py-2.5">
                   {([
-                    { met: passwordChecks.length,    label: "At least 8 characters" },
-                    { met: passwordChecks.uppercase,  label: "One uppercase letter" },
-                    { met: passwordChecks.number,     label: "One number (0–9)" },
-                    { met: passwordChecks.special,    label: "One special character" },
+                    { met: passwordChecks.length, label: "At least 8 characters" },
+                    { met: passwordChecks.uppercase, label: "One uppercase letter" },
+                    { met: passwordChecks.number, label: "One number (0–9)" },
+                    { met: passwordChecks.special, label: "One special character" },
                   ] as const).map(({ met, label }) => (
                     <div
                       key={label}
-                      className={`flex items-center gap-1.5 text-xs transition-colors duration-200 ${
-                        met ? "text-yellow-400" : "text-gray-500"
-                      }`}
+                      className={`flex items-center gap-1.5 text-xs transition-colors duration-200 ${met ? "text-yellow-400" : "text-gray-500"
+                        }`}
                     >
                       {met ? (
                         <FaCheck className="w-2.5 h-2.5 flex-shrink-0" />

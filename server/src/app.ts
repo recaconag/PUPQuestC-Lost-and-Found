@@ -1,10 +1,11 @@
-import express, { Application, Request, Response } from "express";
+import express, { Application, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import path from "path";
 import config from "./app/config/config";
 import router from "./app/routes/routes";
 import errorHandler from "./app/midddlewares/errorHandler";
+import csurf from "csurf";
 
 const app: Application = express();
 
@@ -34,19 +35,50 @@ app.use(
 
 app.use(cookieParser());
 
+// CSRF Protection Configuration
+const csrfProtection = csurf({
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    key: "_csrf",
+  },
+  ignoreMethods: ["GET", "HEAD", "OPTIONS"],
+});
+
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+// Apply CSRF protection middleware globally (ignores GET, HEAD, OPTIONS)
+app.use(csrfProtection);
+
+// GET endpoint to return CSRF token
+app.get("/api/csrf-token", (req: Request, res: Response) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
 
 app.get("/", (req: Request, res: Response) => {
-  res.send({ 
-  success: true,
-  message: "Welcome to PUPQuestC: Lost and Found Management API" 
-});
+  res.send({
+    success: true,
+    message: "Welcome to PUPQuestC: Lost and Found Management API"
+  });
 });
 
 app.use("/api", router);
+
+// CSRF error handler
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === "EBADCSRFTOKEN") {
+    return res.status(403).json({
+      success: false,
+      message: "Invalid or missing CSRF token.",
+    });
+  }
+  next(err);
+});
+
 app.use(errorHandler);
 
 app.use((req: Request, res: Response) => {

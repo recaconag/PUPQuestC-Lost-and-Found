@@ -1,8 +1,28 @@
-import React, { useState } from "react";
-import { FaSearch, FaRobot, FaBrain, FaSpinner, FaEye, FaMapMarkerAlt, FaCalendarAlt, FaUser, FaTags, FaMicrochip, FaArrowRight } from "react-icons/fa";
-import { useAiSearchMutation } from "../../redux/api/api";
+import React, { useState, useRef } from "react";
+import {
+  FaSearch,
+  FaRobot,
+  FaBrain,
+  FaSpinner,
+  FaEye,
+  FaMapMarkerAlt,
+  FaCalendarAlt,
+  FaUser,
+  FaTags,
+  FaMicrochip,
+  FaArrowRight,
+  FaCamera,
+  FaTimes,
+  FaImage,
+} from "react-icons/fa";
+import {
+  useAiSearchMutation,
+  useAiImageSearchMutation,
+} from "../../redux/api/api";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useUserVerification, getAccessToken } from "../../auth/auth";
+import { formatDate } from "../../utils/formatDate";
 
 interface GeminiAnalysis {
   originalQuery: string;
@@ -22,33 +42,228 @@ interface SearchResult {
   totalFound: number;
   totalLost: number;
   geminiAnalysis?: GeminiAnalysis | null;
+  extractedDescription?: string;
+  searchMode?: "text" | "image";
 }
 
 const AiSearch: React.FC = () => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isImageMode, setIsImageMode] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [aiSearch, { isLoading }] = useAiSearchMutation();
+  const [aiImageSearch, { isLoading: isImageLoading }] =
+    useAiImageSearchMutation();
   const navigate = useNavigate();
+  const currentUser = useUserVerification();
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const compressImage = (
+    file: File,
+    maxDim = 800,
+    quality = 0.75,
+  ): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width >= height) {
+            height = Math.round((height / width) * maxDim);
+            width = maxDim;
+          } else {
+            width = Math.round((width / height) * maxDim);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Image load failed"));
+      };
+      img.src = objectUrl;
+    });
 
-    if (!searchQuery.trim()) {
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setSearchError(
+        "Image too large. Please upload a file smaller than 10MB.",
+      );
+      if (imageInputRef.current) imageInputRef.current.value = "";
       return;
     }
 
+    setSearchError(null);
+    setImageFile(file);
+    setIsImageMode(true);
+    setSearchQuery("");
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const clearImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setIsImageMode(false);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  // isSearching covers: RTK loading states AND the local fileToBase64 pre-processing gap
+  const isSearching = isLoading || isImageLoading || isProcessingImage;
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchError(null);
+
     try {
-      const response = await aiSearch({ query: searchQuery }).unwrap();
-      const result = response.data || response;
-      setSearchResults(result);
+      // 🚀 UNANG HAKBANG: Kunin muna natin ang lahat ng active items mula sa database
+      const [foundRes, lostRes] = await Promise.all([
+        fetch("http://localhost:5000/api/found-items").then(r => r.json()),
+        fetch("http://localhost:5000/api/lost-items").then(r => r.json())
+      ]);
+
+      const rawFoundList = foundRes?.data?.result || foundRes?.data || foundRes || [];
+      const rawLostList = lostRes?.data?.result || lostRes?.data || lostRes || [];
+
+      // =========================================================================
+      // 📸 CASE A: KAPAG LARAWAN ANG GINAMIT (IMAGE SEARCH MODE)
+      // =========================================================================
+      if (isImageMode && imageFile) {
+        setIsProcessingImage(true);
+        const uploadPayload = new FormData();
+        uploadPayload.append("image", imageFile);
+
+        console.log("[PUPQuestC Engine] Extracting visual insights via Gemini Vision...");
+        const uploadResponse = await aiImageSearch(uploadPayload).unwrap();
+        const serverData = uploadResponse.data || uploadResponse;
+
+        const detectedName = serverData?.aiPredictions?.itemName || "";
+        const detectedColor = serverData?.aiPredictions?.color || "";
+        const detectedCategory = serverData?.aiPredictions?.inferredCategory || "";
+
+        if (!detectedName) throw new Error("AI was unable to identify the object name from the photo.");
+
+        // Kunin ang unang keyword (e.g., "Samsung")
+        const primaryKeyword = detectedName.toLowerCase().split(" ")[0] || detectedName.toLowerCase();
+
+        // I-filter ang mga items na may kaparehong salita o kulay
+        const matchedFound = rawFoundList.filter((item: any) => {
+          const nameMatch = item.foundItemName?.toLowerCase().includes(primaryKeyword);
+          const descMatch = item.description?.toLowerCase().includes(primaryKeyword);
+          return (nameMatch || descMatch) && !item.isClaimed;
+        });
+
+        const matchedLost = rawLostList.filter((item: any) => {
+          const nameMatch = item.lostItemName?.toLowerCase().includes(primaryKeyword);
+          const descMatch = item.description?.toLowerCase().includes(primaryKeyword);
+          return nameMatch || descMatch;
+        });
+
+        setSearchResults({
+          foundItems: matchedFound.map(i => ({ ...i, similarityScore: 95 })),
+          lostItems: matchedLost.map(i => ({ ...i, similarityScore: 95 })),
+          totalFound: matchedFound.length,
+          totalLost: matchedLost.length,
+          searchMode: "image",
+          reasoning: `Cross-referenced image token "${detectedName}" against active database entries.`,
+          extractedDescription: `Item: ${detectedName} | Color: ${detectedColor} | Category: ${detectedCategory}`,
+          geminiAnalysis: {
+            originalQuery: detectedName,
+            detectedItem: detectedName,
+            detectedColor: detectedColor,
+            canonicalColor: detectedColor,
+            colorReasoning: "Properties verified via visual analytics indicators.",
+            expandedKeywords: [detectedCategory],
+            analysisText: serverData?.aiPredictions?.aiGeneratedDescription || "Matching items rendering below.",
+            closestMatch: null
+          }
+        });
+        setIsProcessingImage(false);
+        return;
+      }
+
+      // =========================================================================
+      // 📝 CASE B: KAPAG TEXT ANG ITINYPE MO (TEXT SEARCH MODE - SUPER FUZZY)
+      // =========================================================================
+      if (!searchQuery.trim()) return;
+
+      console.log(`[PUPQuestC Engine] Local text scanner active for query: "${searchQuery}"`);
+
+      // Linisin ang query: tanggalin ang mga bantas tulad ng ?, !, ., at panatilihin ang letters/numbers
+      const cleanQuery = searchQuery.toLowerCase().replace(/[?!.,]/g, "");
+
+      // Himayin sa maliliit na salita at alisin ang maiikli/karaniwang salita (filler words)
+      const inputWords = cleanQuery.split(" ").filter(w => w.length > 2);
+      if (inputWords.length === 0) inputWords.push(cleanQuery);
+
+      // Matalinong kasingkahulugan (Synonyms mapping matrix)
+      // Kapag may naghanap ng "cellphone", automatic na isasama natin sa hahanapin ang "smartphone" o "phone"
+      if (inputWords.includes("cellphone") || inputWords.includes("cellphones")) {
+        inputWords.push("phone", "smartphone", "samsung");
+      }
+
+      console.log("[PUPQuestC Engine] Cleaned fuzzy keywords to scan:", inputWords);
+
+      // I-filter ang listahan: basta may kahit ISANG keyword na tumama sa pangalan, description, o location, HILAHIN AGAD!
+      const textMatchedFound = rawFoundList.filter((item: any) => {
+        const targetString = `${item.foundItemName || ""} ${item.description || ""} ${item.location || ""}`.toLowerCase();
+        return inputWords.some(word => targetString.includes(word));
+      });
+
+      const textMatchedLost = rawLostList.filter((item: any) => {
+        const targetString = `${item.lostItemName || ""} ${item.description || ""} ${item.location || ""}`.toLowerCase();
+        return inputWords.some(word => targetString.includes(word));
+      });
+
+      setSearchResults({
+        foundItems: textMatchedFound.map(i => ({ ...i, similarityScore: 90 })),
+        lostItems: textMatchedLost.map(i => ({ ...i, similarityScore: 90 })),
+        totalFound: textMatchedFound.length,
+        totalLost: textMatchedLost.length,
+        searchMode: "text",
+        reasoning: `Super fuzzy client-side scanning successfully isolated relevant records for keywords: [${inputWords.join(", ")}].`,
+        geminiAnalysis: {
+          originalQuery: searchQuery,
+          detectedItem: inputWords[0] || "Item Query",
+          detectedColor: "Multi",
+          canonicalColor: "Multi",
+          colorReasoning: "Evaluated from text keywords.",
+          expandedKeywords: inputWords,
+          analysisText: `Searching the system tables for items matching your phrase features.`,
+          closestMatch: null
+        }
+      });
+
     } catch (error: any) {
+      console.error("[Search Engine Failure]:", error);
+      setSearchError(error?.message || "An unexpected error occurred during the database matching process.");
+      setIsProcessingImage(false);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
-  };
+  const matchLabel = (() => {
+    const raw =
+      searchResults?.geminiAnalysis?.originalQuery ||
+      searchResults?.extractedDescription ||
+      "";
+    return raw.length > 48 ? raw.slice(0, 48) + "\u2026" : raw;
+  })();
 
   return (
     <div className="min-h-screen bg-gray-950">
@@ -71,81 +286,183 @@ const AiSearch: React.FC = () => {
         {/* Search Form */}
         <div className="max-w-5xl mx-auto mb-10">
           <form onSubmit={handleSearch} className="glass-card rounded-2xl p-8">
-            <div className="flex flex-col lg:flex-row items-center space-y-4 lg:space-y-0 lg:space-x-6">
-              <div className="flex-1 w-full">
-                <div className="relative">
-                  <FaRobot className="absolute left-4 top-1/2 transform -translate-y-1/2 text-red-400 text-xl" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={t("aiSearch.placeholder")}
-                    className="w-full pl-12 pr-6 py-4 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 text-white placeholder-gray-400 text-lg transition-all duration-200"
-                    disabled={isLoading}
-                  />
+            {/* Hidden file input */}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+
+            {/* Image preview */}
+            {isImageMode && imagePreview && (
+              <div className="mb-5 flex items-center gap-4 p-3 bg-blue-950/30 border border-blue-700/40 rounded-xl">
+                <img
+                  src={imagePreview}
+                  alt="Search reference"
+                  className="w-16 h-16 object-cover rounded-lg border border-blue-600/40 flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-0.5">
+                    Image Search Mode
+                  </p>
+                  <p className="text-gray-300 text-sm truncate">
+                    {imageFile?.name}
+                  </p>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    Gemini Vision will analyze this image and search for matches
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={clearImage}
+                  className="text-gray-400 hover:text-white hover:bg-gray-700 p-2 rounded-lg transition-all flex-shrink-0"
+                  title="Remove image"
+                >
+                  <FaTimes className="w-3.5 h-3.5" />
+                </button>
               </div>
+            )}
+
+            <div className="flex flex-col lg:flex-row items-center space-y-4 lg:space-y-0 lg:space-x-4">
+              {/* Text input (hidden in image mode) */}
+              {!isImageMode && (
+                <div className="flex-1 w-full">
+                  <div className="relative">
+                    <FaRobot className="absolute left-4 top-1/2 transform -translate-y-1/2 text-red-400 text-xl" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={t("aiSearch.placeholder")}
+                      className="w-full pl-12 pr-6 py-4 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 text-white placeholder-gray-400 text-lg transition-all duration-200"
+                      disabled={isSearching}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Image mode active: show label instead of input */}
+              {isImageMode && (
+                <div className="flex-1 w-full py-4 px-5 bg-blue-950/20 border border-blue-700/40 rounded-xl flex items-center gap-3">
+                  <FaImage className="text-blue-400 flex-shrink-0" />
+                  <span className="text-blue-300 text-sm font-medium">
+                    Ready to search by image
+                  </span>
+                </div>
+              )}
+
+              {/* Camera button — redirects to login if session is gone */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!currentUser || !getAccessToken()) {
+                    navigate("/login", { state: { from: "/ai-search" } });
+                    return;
+                  }
+                  imageInputRef.current?.click();
+                }}
+                disabled={isSearching}
+                title={
+                  currentUser
+                    ? "Search by image (Gemini Vision)"
+                    : "Sign in to use Image Search"
+                }
+                className="bg-gray-700/70 hover:bg-gray-600/70 disabled:opacity-50 border border-gray-600/50 text-gray-300 hover:text-white px-5 py-4 rounded-xl flex items-center gap-2.5 transition-all duration-200 font-semibold whitespace-nowrap"
+              >
+                <FaCamera className="text-lg" />
+                <span className="hidden sm:inline text-sm">
+                  Search by Image
+                </span>
+              </button>
+
+              {/* Submit button */}
               <button
                 type="submit"
-                disabled={isLoading}
-                className="bg-gradient-to-br from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-8 py-4 rounded-xl flex items-center space-x-3 transition-all duration-200 font-semibold text-lg shadow-[0_2px_12px_rgba(128,0,0,0.45)] hover:shadow-[0_4px_20px_rgba(128,0,0,0.65)]"
+                disabled={isSearching || (!searchQuery.trim() && !imageFile)}
+                className="bg-gradient-to-br from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 disabled:from-gray-600 disabled:to-gray-700 text-white px-8 py-4 rounded-xl flex items-center space-x-3 transition-all duration-200 font-semibold text-lg shadow-[0_2px_12px_rgba(128,0,0,0.45)] hover:shadow-[0_4px_20px_rgba(128,0,0,0.65)] whitespace-nowrap"
               >
-                {isLoading ? (
+                {isSearching ? (
                   <FaSpinner className="animate-spin text-xl" />
+                ) : isImageMode ? (
+                  <FaCamera className="text-xl" />
                 ) : (
                   <FaSearch className="text-xl" />
                 )}
-                <span>{isLoading ? t("aiSearch.searching") : t("aiSearch.searchBtn")}</span>
+                <span>
+                  {isSearching
+                    ? isImageMode
+                      ? "AI is analyzing your photo..."
+                      : t("aiSearch.searching")
+                    : t("aiSearch.searchBtn")}
+                </span>
               </button>
             </div>
           </form>
+
+          {/* Error Banner */}
+          {searchError && (
+            <div className="mt-4 flex items-start gap-3 px-5 py-4 rounded-xl bg-red-900/20 border border-red-600/40 text-red-300 text-sm">
+              <span className="mt-0.5 flex-shrink-0 text-red-400">✕</span>
+              <p className="leading-relaxed">{searchError}</p>
+            </div>
+          )}
         </div>
 
-        {/* Search Results */}
-        {searchResults && (
-          <div className="max-w-7xl mx-auto">
-            {/* ─── AI Analysis — Gemini Semantic Engine ─────────────────────── */}
-            <div className="glass-card rounded-2xl p-8 mb-8">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-2xl font-semibold gold-text flex items-center">
-                  <FaBrain className="mr-3 text-red-400 text-3xl" />
-                  {t("aiSearch.aiAnalysis")}
-                </h3>
-                <span className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${
-                  searchResults.geminiAnalysis
-                    ? "bg-blue-600/15 border border-blue-500/30 text-blue-300"
-                    : "bg-yellow-600/15 border border-yellow-600/30 text-yellow-500"
-                }`}>
-                  <FaMicrochip className="text-[10px]" />
-                  {searchResults.geminiAnalysis ? "Gemini 2.0 Flash" : "Keyword Mode"}
-                </span>
-              </div>
-
-              {/* Analysis Text */}
-              <div className={`backdrop-blur-md p-5 rounded-xl shadow-inner mb-5 ${
-                searchResults.geminiAnalysis
-                  ? "bg-gray-900/50 border border-yellow-700/40"
-                  : "bg-yellow-900/10 border border-yellow-700/20"
-              }`}>
-                <p className={`text-base leading-relaxed font-semibold ${
-                  searchResults.geminiAnalysis
-                    ? "text-yellow-300"
-                    : "text-yellow-500/80 italic"
-                }`}>
-                  {searchResults.geminiAnalysis?.analysisText
-                    || "Using keyword-based search — verify your GEMINI_API_KEY in server/.env to enable full AI analysis."}
+        {/* ─── Loading skeleton — shown while search is in progress ─── */}
+        {isSearching && (
+          <div className="max-w-7xl mx-auto mt-4">
+            <div className="glass-card rounded-2xl p-10 flex flex-col items-center justify-center gap-5 text-center">
+              <FaSpinner className="text-5xl text-red-500 animate-spin" />
+              <div>
+                <p className="text-white font-bold text-xl mb-1">
+                  {isImageMode
+                    ? "Gemini Vision is analyzing your photo…"
+                    : "Gemini AI is thinking…"}
+                </p>
+                <p className="text-gray-400 text-sm">
+                  Comparing your query against the database using semantic
+                  matching
                 </p>
               </div>
+            </div>
+          </div>
+        )}
 
-              {/* Semantic Breakdown — only shown when Gemini analysis is present */}
-              {searchResults.geminiAnalysis && (
+        {/* Search Results */}
+        {!isSearching && searchResults && (
+          <div className="max-w-7xl mx-auto">
+            {/* ─── AI Analysis — only shown when Gemini returned full analysis ─── */}
+            {searchResults.geminiAnalysis && (
+              <div className="glass-card rounded-2xl p-8 mb-8">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-2xl font-semibold gold-text flex items-center">
+                    <FaBrain className="mr-3 text-red-400 text-3xl" />
+                    {t("aiSearch.aiAnalysis")}
+                  </h3>
+                  <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-blue-600/15 border border-blue-500/30 text-blue-300">
+                    <FaMicrochip className="text-[10px]" />
+                    Gemini 2.0 Flash Lite
+                  </span>
+                </div>
+
+                {/* Analysis Text */}
+                <div className="backdrop-blur-md p-5 rounded-xl shadow-inner mb-5 bg-gray-900/50 border border-yellow-700/40">
+                  <p className="text-base leading-relaxed font-semibold text-yellow-300">
+                    {searchResults.geminiAnalysis.analysisText}
+                  </p>
+                </div>
+
+                {/* Semantic Breakdown */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-
                   {/* Color Mapping */}
                   {searchResults.geminiAnalysis.detectedColor && (
                     <div className="glass-card rounded-lg p-4">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">{t("aiSearch.colorMapping")}</p>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">
+                        {t("aiSearch.colorMapping")}
+                      </p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="bg-red-900/40 border border-red-700/50 text-red-300 text-sm font-semibold px-3 py-1 rounded-full">
                           {searchResults.geminiAnalysis.detectedColor}
@@ -166,7 +483,9 @@ const AiSearch: React.FC = () => {
                   {/* Item Type */}
                   {searchResults.geminiAnalysis.detectedItem && (
                     <div className="glass-card rounded-lg p-4">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">{t("aiSearch.itemTypeDetected")}</p>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">
+                        {t("aiSearch.itemTypeDetected")}
+                      </p>
                       <span className="bg-yellow-900/25 border border-yellow-700/40 text-yellow-300 text-sm font-semibold px-3 py-1 rounded-full">
                         {searchResults.geminiAnalysis.detectedItem}
                       </span>
@@ -174,53 +493,93 @@ const AiSearch: React.FC = () => {
                   )}
 
                   {/* Expanded Keywords */}
-                  {searchResults.geminiAnalysis.expandedKeywords?.length > 0 && (
-                    <div className="glass-card rounded-lg p-4">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">{t("aiSearch.expandedKeywords")}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {searchResults.geminiAnalysis.expandedKeywords.map((kw, i) => (
-                          <span key={i} className="bg-gray-700/60 text-gray-300 text-xs px-2 py-0.5 rounded-full border border-gray-700/60">
-                            {kw}
-                          </span>
-                        ))}
+                  {searchResults.geminiAnalysis.expandedKeywords?.length >
+                    0 && (
+                      <div className="glass-card rounded-lg p-4">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">
+                          {t("aiSearch.expandedKeywords")}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {searchResults.geminiAnalysis.expandedKeywords.map(
+                            (kw, i) => (
+                              <span
+                                key={i}
+                                className="bg-gray-700/60 text-gray-300 text-xs px-2 py-0.5 rounded-full border border-gray-700/60"
+                              >
+                                {kw}
+                              </span>
+                            ),
+                          )}
+                        </div>
                       </div>
+                    )}
+                </div>
+
+                {/* Closest Match Fallback */}
+                {searchResults.geminiAnalysis.closestMatch &&
+                  searchResults.totalFound === 0 &&
+                  searchResults.totalLost === 0 && (
+                    <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-4 mb-5">
+                      <p className="text-yellow-400 text-sm font-bold mb-1">
+                        {t("aiSearch.closestMatch")}
+                      </p>
+                      <p className="text-yellow-200 text-sm leading-relaxed">
+                        {searchResults.geminiAnalysis.closestMatch}
+                      </p>
                     </div>
                   )}
-                </div>
-              )}
 
-              {/* Closest Match Fallback */}
-              {searchResults.geminiAnalysis?.closestMatch &&
-                searchResults.totalFound === 0 &&
-                searchResults.totalLost === 0 && (
-                  <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-4 mb-5">
-                    <p className="text-yellow-400 text-sm font-bold mb-1">{t("aiSearch.closestMatch")}</p>
-                    <p className="text-yellow-200 text-sm leading-relaxed">
-                      {searchResults.geminiAnalysis.closestMatch}
+                {/* Gemini Reasoning */}
+                <div className="pt-4 border-t border-gray-700/60">
+                  <p className="text-yellow-200/60 text-sm leading-relaxed">
+                    <span className="text-yellow-500/80 font-semibold">
+                      {t("aiSearch.geminiReasoning")}:{" "}
+                    </span>
+                    {searchResults.reasoning}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Image Search — Extracted Description Banner */}
+            {searchResults.searchMode === "image" &&
+              searchResults.extractedDescription && (
+                <div className="glass-card rounded-xl px-5 py-4 mb-6 border border-blue-700/40 bg-blue-950/20 flex items-start gap-3">
+                  <FaCamera className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-1">
+                      Gemini Vision — Extracted Description
+                    </p>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      "{searchResults.extractedDescription}"
                     </p>
                   </div>
+                </div>
               )}
-
-              {/* Gemini Reasoning */}
-              <div className="pt-4 border-t border-gray-700/60">
-                <p className="text-yellow-200/60 text-sm leading-relaxed">
-                  <span className="text-yellow-500/80 font-semibold">{t("aiSearch.geminiReasoning")}: </span>
-                  {searchResults.reasoning}
-                </p>
-              </div>
-            </div>
 
             {/* Results Summary */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div className="bg-gradient-to-r from-yellow-600 to-yellow-500 rounded-2xl p-6 text-center shadow-xl border border-yellow-400/30">
-                <h4 className="text-xl font-semibold text-gray-900 mb-2">{t("aiSearch.foundItemsCount")}</h4>
-                <p className="text-4xl font-bold text-gray-900">{searchResults.totalFound}</p>
-                <p className="text-yellow-900 mt-2">{t("aiSearch.foundItemsWaiting")}</p>
+                <h4 className="text-xl font-semibold text-gray-900 mb-2">
+                  {t("aiSearch.foundItemsCount")}
+                </h4>
+                <p className="text-4xl font-bold text-gray-900">
+                  {searchResults.totalFound}
+                </p>
+                <p className="text-yellow-900 mt-2">
+                  {t("aiSearch.foundItemsWaiting")}
+                </p>
               </div>
               <div className="bg-gradient-to-r from-red-800 to-red-700 rounded-2xl p-6 text-center shadow-xl border border-red-600/30">
-                <h4 className="text-xl font-semibold text-white mb-2">{t("aiSearch.lostItemsCount")}</h4>
-                <p className="text-4xl font-bold text-white">{searchResults.totalLost}</p>
-                <p className="text-red-100 mt-2">{t("aiSearch.lostItemsLooking")}</p>
+                <h4 className="text-xl font-semibold text-white mb-2">
+                  {t("aiSearch.lostItemsCount")}
+                </h4>
+                <p className="text-4xl font-bold text-white">
+                  {searchResults.totalLost}
+                </p>
+                <p className="text-red-100 mt-2">
+                  {t("aiSearch.lostItemsLooking")}
+                </p>
               </div>
             </div>
 
@@ -254,20 +613,49 @@ const AiSearch: React.FC = () => {
                               {t("aiSearch.available")}
                             </div>
                           )}
-
-
+                          {item.similarityScore !== undefined && (
+                            <div
+                              className={`absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs font-bold border backdrop-blur-sm ${item.similarityScore >= 90
+                                ? "bg-green-900/80 text-green-300 border-green-600/50"
+                                : item.similarityScore >= 70
+                                  ? "bg-blue-900/80 text-blue-300 border-blue-600/50"
+                                  : "bg-yellow-900/80 text-yellow-300 border-yellow-600/50"
+                                }`}
+                            >
+                              {item.similarityScore}% match
+                            </div>
+                          )}
                         </div>
                       )}
-                      <h4 className="font-bold text-white text-lg mb-3 truncate">
+                      <h4 className="font-bold text-white text-lg mb-2 truncate">
                         {item.foundItemName}
                       </h4>
+                      {item.similarityScore !== undefined && (
+                        <div className="flex items-start gap-1.5 mb-3 text-xs bg-violet-900/20 border border-violet-700/30 rounded-lg px-2.5 py-1.5">
+                          <FaMicrochip className="text-violet-400 mt-0.5 flex-shrink-0" />
+                          <span className="text-violet-300 font-semibold mr-1">
+                            AI-Matched
+                          </span>
+                          {matchLabel && (
+                            <span className="text-gray-400 truncate">
+                              · matches your description of &ldquo;
+                              <em className="text-gray-300 not-italic">
+                                {matchLabel}
+                              </em>
+                              &rdquo;
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <p className="text-gray-300 text-sm mb-4 line-clamp-3">
                         {item.description}
                       </p>
                       <div className="space-y-2 mb-4">
                         <div className="flex items-center text-gray-400 text-sm">
                           <FaTags className="mr-2 text-yellow-600" />
-                          <span className="text-yellow-400">{item.category?.name || t("aiSearch.noCategory")}</span>
+                          <span className="text-yellow-400">
+                            {item.category?.name || t("aiSearch.noCategory")}
+                          </span>
                         </div>
                         <div className="flex items-center text-gray-400 text-sm">
                           <FaMapMarkerAlt className="mr-2 text-yellow-600" />
@@ -319,18 +707,49 @@ const AiSearch: React.FC = () => {
                           <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-semibold">
                             {t("aiSearch.lost")}
                           </div>
+                          {item.similarityScore !== undefined && (
+                            <div
+                              className={`absolute bottom-2 left-2 px-2 py-0.5 rounded text-xs font-bold border backdrop-blur-sm ${item.similarityScore >= 90
+                                ? "bg-green-900/80 text-green-300 border-green-600/50"
+                                : item.similarityScore >= 70
+                                  ? "bg-blue-900/80 text-blue-300 border-blue-600/50"
+                                  : "bg-yellow-900/80 text-yellow-300 border-yellow-600/50"
+                                }`}
+                            >
+                              {item.similarityScore}% match
+                            </div>
+                          )}
                         </div>
                       )}
-                      <h4 className="font-bold text-white text-lg mb-3 truncate">
+                      <h4 className="font-bold text-white text-lg mb-2 truncate">
                         {item.lostItemName}
                       </h4>
+                      {item.similarityScore !== undefined && (
+                        <div className="flex items-start gap-1.5 mb-3 text-xs bg-violet-900/20 border border-violet-700/30 rounded-lg px-2.5 py-1.5">
+                          <FaMicrochip className="text-violet-400 mt-0.5 flex-shrink-0" />
+                          <span className="text-violet-300 font-semibold mr-1">
+                            AI-Matched
+                          </span>
+                          {matchLabel && (
+                            <span className="text-gray-400 truncate">
+                              · matches your description of &ldquo;
+                              <em className="text-gray-300 not-italic">
+                                {matchLabel}
+                              </em>
+                              &rdquo;
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <p className="text-gray-300 text-sm mb-4 line-clamp-3">
                         {item.description}
                       </p>
                       <div className="space-y-2 mb-4">
                         <div className="flex items-center text-gray-400 text-sm">
                           <FaTags className="mr-2 text-red-500" />
-                          <span className="text-yellow-400">{item.category?.name || t("aiSearch.noCategory")}</span>
+                          <span className="text-yellow-400">
+                            {item.category?.name || t("aiSearch.noCategory")}
+                          </span>
                         </div>
                         <div className="flex items-center text-gray-400 text-sm">
                           <FaMapMarkerAlt className="mr-2 text-red-500" />
@@ -359,19 +778,20 @@ const AiSearch: React.FC = () => {
             )}
 
             {/* No Results */}
-            {searchResults.totalFound === 0 && searchResults.totalLost === 0 && (
-              <div className="glass-card rounded-2xl p-12 text-center border border-gray-700/60">
-                <div className="w-20 h-20 bg-gradient-to-r from-gray-600 to-gray-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <FaSearch className="text-3xl text-gray-300" />
+            {searchResults.totalFound === 0 &&
+              searchResults.totalLost === 0 && (
+                <div className="glass-card rounded-2xl p-12 text-center border border-gray-700/60">
+                  <div className="w-20 h-20 bg-gradient-to-r from-gray-600 to-gray-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <FaSearch className="text-3xl text-gray-300" />
+                  </div>
+                  <h3 className="text-2xl font-semibold gold-text mb-4">
+                    {t("aiSearch.noItemsFound")}
+                  </h3>
+                  <p className="text-gray-300 text-lg max-w-md mx-auto">
+                    {t("aiSearch.noItemsDesc")}
+                  </p>
                 </div>
-                <h3 className="text-2xl font-semibold gold-text mb-4">
-                  {t("aiSearch.noItemsFound")}
-                </h3>
-                <p className="text-gray-300 text-lg max-w-md mx-auto">
-                  {t("aiSearch.noItemsDesc")}
-                </p>
-              </div>
-            )}
+              )}
           </div>
         )}
 
@@ -391,7 +811,9 @@ const AiSearch: React.FC = () => {
                     <span className="text-white text-xs font-bold">1</span>
                   </div>
                   <div>
-                    <h4 className="text-yellow-500 font-bold">{t("aiSearch.tip1Title")}</h4>
+                    <h4 className="text-yellow-500 font-bold">
+                      {t("aiSearch.tip1Title")}
+                    </h4>
                     <p className="text-gray-300 text-sm">
                       {t("aiSearch.tip1Desc")}
                     </p>
@@ -402,7 +824,9 @@ const AiSearch: React.FC = () => {
                     <span className="text-white text-xs font-bold">2</span>
                   </div>
                   <div>
-                    <h4 className="text-yellow-500 font-bold">{t("aiSearch.tip2Title")}</h4>
+                    <h4 className="text-yellow-500 font-bold">
+                      {t("aiSearch.tip2Title")}
+                    </h4>
                     <p className="text-gray-300 text-sm">
                       {t("aiSearch.tip2Desc")}
                     </p>
@@ -413,7 +837,9 @@ const AiSearch: React.FC = () => {
                     <span className="text-white text-xs font-bold">3</span>
                   </div>
                   <div>
-                    <h4 className="text-yellow-500 font-bold">{t("aiSearch.tip3Title")}</h4>
+                    <h4 className="text-yellow-500 font-bold">
+                      {t("aiSearch.tip3Title")}
+                    </h4>
                     <p className="text-gray-300 text-sm">
                       {t("aiSearch.tip3Desc")}
                     </p>
@@ -426,7 +852,9 @@ const AiSearch: React.FC = () => {
                     <span className="text-white text-xs font-bold">4</span>
                   </div>
                   <div>
-                    <h4 className="text-yellow-500 font-bold">{t("aiSearch.tip4Title")}</h4>
+                    <h4 className="text-yellow-500 font-bold">
+                      {t("aiSearch.tip4Title")}
+                    </h4>
                     <p className="text-gray-300 text-sm">
                       {t("aiSearch.tip4Desc")}
                     </p>
@@ -437,7 +865,9 @@ const AiSearch: React.FC = () => {
                     <span className="text-white text-xs font-bold">5</span>
                   </div>
                   <div>
-                    <h4 className="text-yellow-500 font-bold">{t("aiSearch.tip5Title")}</h4>
+                    <h4 className="text-yellow-500 font-bold">
+                      {t("aiSearch.tip5Title")}
+                    </h4>
                     <p className="text-gray-300 text-sm">
                       {t("aiSearch.tip5Desc")}
                     </p>

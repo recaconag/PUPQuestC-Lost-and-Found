@@ -4,6 +4,11 @@ import { MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { FaArrowLeft, FaCheckCircle, FaLock } from "react-icons/fa";
 import { Spinner } from "flowbite-react";
 import { useResetPasswordMutation } from "../../redux/api/api";
+import { FormField } from "../../ui/forms/FormField";
+import { resetPasswordSchema, type ResetPasswordValues } from "../../ui/forms/schemas";
+import { useZodForm } from "../../ui/forms/useZodForm";
+import { PupInput } from "../../ui/PupInput";
+import { PupButton } from "../../ui/PupButton";
 
 const ResetPassword = () => {
   const navigate = useNavigate();
@@ -11,34 +16,29 @@ const ResetPassword = () => {
   const email = searchParams.get("email") ?? "";
   const otp = searchParams.get("otp") ?? "";
 
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
   const [resetPassword, { isLoading }] = useResetPasswordMutation();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const {
+    handleSubmit,
+    register,
+    formState: { errors },
+  } = useZodForm<typeof resetPasswordSchema, ResetPasswordValues>(resetPasswordSchema, {
+    defaultValues: { newPassword: "", confirmPassword: "" },
+  });
 
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
+  const onSubmit = async (data: ResetPasswordValues) => {
+    setSubmitError(null);
     try {
-      await resetPassword({ email, otp, newPassword }).unwrap();
+      await resetPassword({ email, otp, newPassword: data.newPassword }).unwrap();
       setIsSuccess(true);
       setTimeout(() => navigate("/login", { replace: true }), 2500);
     } catch (err: any) {
-      setError(err?.data?.message ?? "Failed to reset password. Please try again.");
+      setSubmitError(err?.data?.message ?? "Failed to reset password. Please try again.");
     }
   };
 
@@ -79,74 +79,76 @@ const ResetPassword = () => {
 
           {/* Body */}
           <div className="px-8 py-8">
-            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
 
               {/* New Password */}
-              <div className="space-y-1">
-                <label htmlFor="newPassword" className="block text-sm font-semibold text-gray-300">
-                  New Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="newPassword"
-                    type={showNew ? "text" : "password"}
-                    value={newPassword}
-                    onChange={(e) => { setNewPassword(e.target.value); setError(null); }}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    className="w-full rounded-lg border bg-gray-800/50 px-4 py-3 pr-10 text-white placeholder:text-gray-400 backdrop-blur-sm border-red-900/40 hover:border-red-800/60 focus-visible:border-yellow-500/60 outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-yellow-500/30"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowNew((p) => !p)}
-                      className="text-gray-400 hover:text-gray-300 transition-colors focus-visible:outline-none"
-                      aria-label={showNew ? "Hide password" : "Show password"}
-                    >
-                      {showNew ? <MdVisibilityOff className="w-4.5 h-4.5" /> : <MdVisibility className="w-4.5 h-4.5" />}
-                    </button>
+              <FormField<ResetPasswordValues> name="newPassword" label="New Password" errors={errors} required>
+                {({ id, hasError, ariaDescribedBy }) => (
+                  <div className="relative">
+                    <PupInput
+                      id={id}
+                      type={showNew ? "text" : "password"}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      {...register("newPassword")}
+                      hasError={hasError}
+                      ariaDescribedBy={ariaDescribedBy}
+                      aria-required="true"
+                      className="pr-10"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowNew((p) => !p)}
+                        className="text-gray-400 hover:text-gray-300 transition-colors focus-visible:outline-none"
+                        aria-label={showNew ? "Hide password" : "Show password"}
+                      >
+                        {showNew ? <MdVisibilityOff className="w-4.5 h-4.5" /> : <MdVisibility className="w-4.5 h-4.5" />}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
+              </FormField>
 
               {/* Confirm Password */}
-              <div className="space-y-1">
-                <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-300">
-                  Confirm New Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="confirmPassword"
-                    type={showConfirm ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => { setConfirmPassword(e.target.value); setError(null); }}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    className="w-full rounded-lg border bg-gray-800/50 px-4 py-3 pr-10 text-white placeholder:text-gray-400 backdrop-blur-sm border-red-900/40 hover:border-red-800/60 focus-visible:border-yellow-500/60 outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-yellow-500/30"
-                  />
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirm((p) => !p)}
-                      className="text-gray-400 hover:text-gray-300 transition-colors focus-visible:outline-none"
-                      aria-label={showConfirm ? "Hide password" : "Show password"}
-                    >
-                      {showConfirm ? <MdVisibilityOff className="w-4.5 h-4.5" /> : <MdVisibility className="w-4.5 h-4.5" />}
-                    </button>
+              <FormField<ResetPasswordValues> name="confirmPassword" label="Confirm New Password" errors={errors} required>
+                {({ id, hasError, ariaDescribedBy }) => (
+                  <div className="relative">
+                    <PupInput
+                      id={id}
+                      type={showConfirm ? "text" : "password"}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      {...register("confirmPassword")}
+                      hasError={hasError}
+                      ariaDescribedBy={ariaDescribedBy}
+                      aria-required="true"
+                      className="pr-10"
+                    />
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirm((p) => !p)}
+                        className="text-gray-400 hover:text-gray-300 transition-colors focus-visible:outline-none"
+                        aria-label={showConfirm ? "Hide password" : "Show password"}
+                      >
+                        {showConfirm ? <MdVisibilityOff className="w-4.5 h-4.5" /> : <MdVisibility className="w-4.5 h-4.5" />}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
+              </FormField>
 
-              {error && (
+              {submitError && (
                 <p className="text-sm text-red-400 text-center flex items-center justify-center gap-1.5" role="alert">
-                  <span aria-hidden>✕</span> {error}
+                  <span aria-hidden>✕</span> {submitError}
                 </p>
               )}
 
-              <button
+              <PupButton
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-600 hover:to-red-700 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 border border-red-600/50 shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-500/70"
+                className="w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -154,7 +156,7 @@ const ResetPassword = () => {
                     Resetting password…
                   </span>
                 ) : "Reset Password"}
-              </button>
+              </PupButton>
 
               <div className="pt-3 border-t border-gray-700/50 text-center">
                 <Link

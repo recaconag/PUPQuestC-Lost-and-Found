@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaTrash, FaSearch, FaShieldAlt, FaUser, FaBan } from "react-icons/fa";
 import {
   useGetAllUsersQuery,
@@ -6,6 +6,8 @@ import {
   useChangeUserRoleMutation,
   useSoftDeleteUserMutation,
 } from "../../redux/api/api";
+import EmptyState from "../../components/shared/EmptyState";
+import { formatDate } from "../../utils/formatDate";
 
 interface ApiUser {
   id: string;
@@ -34,13 +36,25 @@ interface User {
 
 const UsersManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
 
-  const { data: allUsersData, isLoading } = useGetAllUsersQuery(undefined);
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1); // Reset to page 1 when search changes
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const { data: allUsersData, isLoading } = useGetAllUsersQuery({ page, limit, search: debouncedSearch });
   const [blockUser] = useBlockUserMutation();
   const [changeUserRole] = useChangeUserRoleMutation();
   const [softDeleteUser] = useSoftDeleteUserMutation();
@@ -60,17 +74,7 @@ const UsersManagement = () => {
   });
 
   const users = allUsersData?.data ? allUsersData.data.map(transformUser) : [];
-
-  const filteredUsers = users.filter((user: User) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === "ALL" || user.role === roleFilter;
-    const matchesStatus =
-      statusFilter === "ALL" || user.status === statusFilter;
-
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  const pagination = allUsersData?.meta;
 
   const handleRoleChange = async (id: string, newRole: string) => {
     try {
@@ -149,10 +153,6 @@ const UsersManagement = () => {
       default:
         return <FaUser className="text-gray-500" />;
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
   };
 
   if (isLoading) {
@@ -364,6 +364,7 @@ const UsersManagement = () => {
                         onClick={() => handleDelete(user)}
                         className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
                         title="Delete User"
+                        aria-label="Delete User"
                       >
                         <FaTrash />
                       </button>
@@ -375,12 +376,55 @@ const UsersManagement = () => {
           </table>
         </div>
 
-        {filteredUsers.length === 0 && (
-          <div className="text-center py-12">
-            <FaUser className="mx-auto text-4xl text-gray-500 mb-4" />
-            <p className="text-gray-400">
-              No users found matching your criteria
-            </p>
+        {users.length === 0 && (
+          <EmptyState
+            icon={<FaUser className="w-full h-full" />}
+            title="No Users Found"
+            description={
+              debouncedSearch
+                ? "No users match your search criteria. Try adjusting your search terms."
+                : "No users have registered yet. Users will appear here when they sign up."
+            }
+            action={
+              debouncedSearch ? (
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                  }}
+                  className="inline-flex items-center px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Clear Search
+                </button>
+              ) : null
+            }
+          />
+        )}
+
+        {/* Pagination Controls */}
+        {pagination && pagination.totalPage > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-700">
+            <div className="text-sm text-gray-400">
+              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} users
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={pagination.page === 1}
+                className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-400">
+                Page {pagination.page} of {pagination.totalPage}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(pagination.totalPage, p + 1))}
+                disabled={pagination.page === pagination.totalPage}
+                className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

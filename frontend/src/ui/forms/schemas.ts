@@ -80,6 +80,10 @@ export const editFoundItemSchema = z.object({
     .string()
     .min(1, "Date is required")
     .refine((d) => !Number.isNaN(Date.parse(d)), "Invalid date"),
+  claimProcess: z
+    .string()
+    .trim()
+    .max(1000, "Too long"),
 });
 
 export type EditFoundItemValues = z.infer<typeof editFoundItemSchema>;
@@ -147,4 +151,94 @@ export const registerSchema = z
   });
 
 export type RegisterValues = z.infer<typeof registerSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Please enter your institutional email address")
+    .email("Enter a valid email address"),
+});
+
+export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
+
+export const recoveryOtpSchema = z.object({
+  otp: z
+    .string()
+    .min(6, "Please enter all 6 digits of your recovery code")
+    .max(6, "Please enter all 6 digits of your recovery code"),
+});
+
+export type RecoveryOtpValues = z.infer<typeof recoveryOtpSchema>;
+
+export const resetPasswordSchema = z
+  .object({
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(200, "Too long"),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(1, "Current password is required")
+      .max(200, "Too long"),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .max(200, "Too long"),
+  });
+
+export type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
+
+export const updateProfileNameSchema = z.object({
+  firstName: z
+    .string()
+    .trim()
+    .min(1, "First name is required")
+    .max(100, "Too long"),
+  middleName: z
+    .string()
+    .trim()
+    .max(100, "Too long"),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, "Last name is required")
+    .max(100, "Too long"),
+});
+
+export type UpdateProfileNameValues = z.infer<typeof updateProfileNameSchema>;
+
+export const verifyEmailOtpSchema = z.object({
+  otp: z
+    .string()
+    .min(6, "Please enter all 6 digits of your verification code")
+    .max(6, "Please enter all 6 digits of your verification code"),
+});
+
+export type VerifyEmailOtpValues = z.infer<typeof verifyEmailOtpSchema>;
+
+export const createClaimSchema = z.object({
+  lostDate: z
+    .string()
+    .min(1, "Lost date is required")
+    .refine((d) => !Number.isNaN(Date.parse(d)), "Invalid date"),
+  distinguishingFeatures: z
+    .string()
+    .trim()
+    .min(10, "Please provide at least 10 characters")
+    .max(1000, "Too long"),
+});
+
+export type CreateClaimValues = z.infer<typeof createClaimSchema>;
 

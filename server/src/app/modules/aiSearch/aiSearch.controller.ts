@@ -20,6 +20,38 @@ const aiSearch = async (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
+const aiImageSearch = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { vector } = req.body;
+
+    if (!vector || !Array.isArray(vector)) {
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "No visual query embedding array vector provided by client",
+        });
+      return;
+    }
+
+    const result = await aiSearchService.aiImageSearch(vector);
+
+    sendResponse(res, {
+      statusCode: StatusCodes.OK,
+      success: true,
+      message: "Image search completed successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const aiSearchController = {
   aiSearch,
+  aiImageSearch,
 };

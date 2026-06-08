@@ -12,6 +12,7 @@ interface ImageUploadProps {
   hasError?: boolean;
   disabled?: boolean;
   className?: string;
+  ariaDescribedBy?: string;
 }
 
 type UploadState = "idle" | "uploading" | "done" | "error";
@@ -23,6 +24,7 @@ export const ImageUpload = ({
   hasError = false,
   disabled = false,
   className,
+  ariaDescribedBy,
 }: ImageUploadProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -148,6 +150,7 @@ export const ImageUpload = ({
               type="button"
               onClick={() => inputRef.current?.click()}
               className="bg-yellow-600/90 hover:bg-yellow-500 text-gray-900 font-semibold text-xs px-3 py-1.5 rounded-lg transition-all duration-200"
+              aria-label="Change image"
             >
               Change
             </button>
@@ -155,6 +158,7 @@ export const ImageUpload = ({
               type="button"
               onClick={handleClear}
               className="bg-red-700/90 hover:bg-red-600 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all duration-200"
+              aria-label="Remove image"
             >
               Remove
             </button>
@@ -169,6 +173,7 @@ export const ImageUpload = ({
           role="button"
           tabIndex={disabled ? -1 : 0}
           aria-label="Upload image"
+          aria-describedby={ariaDescribedBy}
           onClick={() => !disabled && !isUploading && inputRef.current?.click()}
           onKeyDown={(e) => {
             if ((e.key === "Enter" || e.key === " ") && !disabled && !isUploading) {
@@ -183,8 +188,8 @@ export const ImageUpload = ({
             dragging
               ? "border-yellow-500 bg-yellow-500/10 scale-[1.01]"
               : hasError
-              ? "border-red-600/70 bg-red-900/10"
-              : "border-gray-700/60 bg-gray-800/40 hover:border-yellow-500/60 hover:bg-gray-700/40",
+                ? "border-red-600/70 bg-red-900/10"
+                : "border-gray-700/60 bg-gray-800/40 hover:border-yellow-500/60 hover:bg-gray-700/40",
             (disabled || isUploading) && "cursor-not-allowed opacity-60"
           )}
         >
@@ -212,8 +217,8 @@ export const ImageUpload = ({
                 {hasError
                   ? <FaTimesCircle className="w-7 h-7" />
                   : dragging
-                  ? <FaImage className="w-7 h-7 text-yellow-500" />
-                  : <FaCloudUploadAlt className="w-7 h-7" />
+                    ? <FaImage className="w-7 h-7 text-yellow-500" />
+                    : <FaCloudUploadAlt className="w-7 h-7" />
                 }
               </div>
 

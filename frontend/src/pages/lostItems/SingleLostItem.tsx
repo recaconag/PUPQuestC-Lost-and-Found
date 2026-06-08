@@ -22,6 +22,8 @@ import {
   FaLock,
 } from "react-icons/fa";
 import { useUserVerification } from "../../auth/auth";
+import { formatDate } from "../../utils/formatDate";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 const SingleLostItem = () => {
   const { lostItem: lostItemId }: any = useParams();
@@ -34,10 +36,10 @@ const SingleLostItem = () => {
     useMarkLostItemAsFoundMutation();
 
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [isConfirmOpen,      setIsConfirmOpen]      = useState(false);
-  const [markFoundError,     setMarkFoundError]     = useState<string | null>(null);
-  const [markFoundSuccess,   setMarkFoundSuccess]   = useState(false);
-  const [isCopied,           setIsCopied]           = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [markFoundError, setMarkFoundError] = useState<string | null>(null);
+  const [markFoundSuccess, setMarkFoundSuccess] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   if (isLoading) {
     return (
@@ -204,13 +206,7 @@ const SingleLostItem = () => {
                     <span className="font-semibold">Date Lost</span>
                   </div>
                   <p className="text-gray-300">
-                    {date
-                      ? new Date(date).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })
-                      : "Date not specified"}
+                    {formatDate(date) || "Date not specified"}
                   </p>
                 </div>
 
@@ -347,6 +343,7 @@ const SingleLostItem = () => {
               exit={{ opacity: 0, scale: 0.88 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="glass-card rounded-2xl w-full max-w-sm overflow-hidden"
+              ref={useFocusTrap(true)}
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700/60 bg-gradient-to-r from-green-900/30 to-gray-800/60">
@@ -379,15 +376,15 @@ const SingleLostItem = () => {
               <div className="flex gap-3 px-6 pb-5">
                 <button
                   onClick={() => setIsConfirmOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-300 bg-gray-700/60 hover:bg-gray-600/60 border border-gray-600/40 transition-colors"
+                  className="flex-1 py-3.5 px-6 rounded-xl text-sm font-semibold text-gray-300 bg-gray-700/60 hover:bg-gray-600/60 border border-gray-600/40 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmMarkAsFound}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-green-700 to-green-800 hover:from-green-800 hover:to-green-900 border border-green-600/50 transition-all duration-200 shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 focus:ring-offset-gray-900"
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-green-700 to-green-800 hover:from-green-800 hover:to-green-900 border border-green-600/50 transition-all duration-200 shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 focus:ring-offset-gray-900"
                 >
-                  <FaCheckCircle className="w-3.5 h-3.5" />
+                  <FaCheckCircle className="w-4 h-4" />
                   Yes, Mark as Found
                 </button>
               </div>
@@ -420,6 +417,7 @@ const SingleLostItem = () => {
               exit={{ opacity: 0, scale: 0.88 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="glass-card rounded-2xl w-full max-w-sm overflow-hidden"
+              ref={useFocusTrap(true)}
             >
               {/* Modal Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700/60 bg-gradient-to-r from-red-900/30 to-gray-800/60">
@@ -474,11 +472,10 @@ const SingleLostItem = () => {
                       <div className="mt-3 flex items-center gap-2">
                         <button
                           onClick={handleCopyEmail}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 border ${
-                            isCopied
-                              ? "bg-green-800/40 border-green-600/50 text-green-300"
-                              : "bg-red-900/30 border-red-700/50 text-red-300 hover:bg-red-800/40 hover:text-red-200"
-                          }`}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 border ${isCopied
+                            ? "bg-green-800/40 border-green-600/50 text-green-300"
+                            : "bg-red-900/30 border-red-700/50 text-red-300 hover:bg-red-800/40 hover:text-red-200"
+                            }`}
                         >
                           {isCopied ? (
                             <><FaCheck className="w-3 h-3" /> Copied!</>

@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { FaTimes, FaCheckCircle } from "react-icons/fa";
-import { useEditMyFoundItemMutation, useCategoryQuery } from "../../redux/api/api";
+import { useEditMyFoundItemMutation } from "../../redux/api/api";
 import { ImageUpload } from "../../ui/ImageUpload";
+import { FormField } from "../../ui/forms/FormField";
+import { editFoundItemSchema, type EditFoundItemValues } from "../../ui/forms/schemas";
+import { useZodForm } from "../../ui/forms/useZodForm";
+import { PupInput } from "../../ui/PupInput";
+import { PupTextarea } from "../../ui/PupTextarea";
+import { PupButton } from "../../ui/PupButton";
+import { cx } from "../../ui/cx";
 
 interface FoundItemSnapshot {
   id: string;
@@ -24,40 +31,41 @@ const inputCls =
   "w-full px-3 py-2.5 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 text-sm";
 
 const EditFoundItemModal = ({ item, onClose, onSuccess }: Props) => {
-  const [form, setForm] = useState({
-    foundItemName: item.foundItemName,
-    description:   item.description,
-    location:      item.location,
-    date:          item.date ? new Date(item.date).toISOString().split("T")[0] : "",
-    claimProcess:  item.claimProcess ?? "",
-    categoryId:    item.category?.id ?? "",
-  });
-  const [imgUrl,      setImgUrl]      = useState(item.img ?? "");
-  const [editError,   setEditError]   = useState<string | null>(null);
+  const [imgUrl, setImgUrl] = useState(item.img ?? "");
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [editSuccess, setEditSuccess] = useState(false);
 
   const [editMyFoundItem, { isLoading }] = useEditMyFoundItemMutation();
-  const { data: categoriesData }         = useCategoryQuery({});
 
   const today = new Date().toISOString().split("T")[0];
 
-  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm((p) => ({ ...p, [key]: e.target.value }));
+  const {
+    handleSubmit,
+    register,
+    setValue,
+    formState: { errors },
+  } = useZodForm<typeof editFoundItemSchema, EditFoundItemValues>(editFoundItemSchema, {
+    defaultValues: {
+      foundItemName: item.foundItemName,
+      description: item.description,
+      location: item.location,
+      date: item.date ? new Date(item.date).toISOString().split("T")[0] : "",
+      claimProcess: item.claimProcess ?? "",
+    },
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editSuccess) return;
-    setEditError(null);
+  const onSubmit = async (data: EditFoundItemValues) => {
+    setSubmitError(null);
     try {
       await editMyFoundItem({
-        id:           item.id,
-        foundItemName: form.foundItemName.trim(),
-        description:  form.description.trim(),
-        location:     form.location.trim(),
-        claimProcess: form.claimProcess.trim(),
-        categoryId:   form.categoryId || undefined,
-        img:          imgUrl || item.img,
-        date:         new Date(form.date).toISOString(),
+        id: item.id,
+        foundItemName: data.foundItemName.trim(),
+        description: data.description.trim(),
+        location: data.location.trim(),
+        claimProcess: data.claimProcess.trim(),
+        categoryId: item.category?.id,
+        img: imgUrl || item.img,
+        date: new Date(data.date).toISOString(),
       }).unwrap();
       setEditSuccess(true);
       setTimeout(() => {
@@ -65,7 +73,7 @@ const EditFoundItemModal = ({ item, onClose, onSuccess }: Props) => {
         onClose();
       }, 1400);
     } catch (err: any) {
-      setEditError(err?.data?.message ?? "Failed to update. Please try again.");
+      setSubmitError(err?.data?.message ?? "Failed to update. Please try again.");
     }
   };
 
@@ -95,6 +103,7 @@ const EditFoundItemModal = ({ item, onClose, onSuccess }: Props) => {
             onClick={onClose}
             disabled={isLoading}
             className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-gray-700/50 disabled:opacity-40"
+            aria-label="Close modal"
           >
             <FaTimes className="w-4 h-4" />
           </button>
@@ -102,100 +111,96 @@ const EditFoundItemModal = ({ item, onClose, onSuccess }: Props) => {
 
         {/* ── Scrollable body ── */}
         <div className="overflow-y-auto flex-1 px-6 py-5">
-          <form id="edit-found-item-form" onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <form id="edit-found-item-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
 
             {/* Item name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Item Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.foundItemName}
-                onChange={set("foundItemName")}
-                required
-                maxLength={120}
-                placeholder="e.g. Black Leather Wallet"
-                className={inputCls}
-              />
-            </div>
+            <FormField<EditFoundItemValues> name="foundItemName" label="Item Name" errors={errors} required>
+              {({ id, hasError, ariaDescribedBy }) => (
+                <PupInput
+                  id={id}
+                  type="text"
+                  placeholder="e.g. Black Leather Wallet"
+                  {...register("foundItemName")}
+                  hasError={hasError}
+                  ariaDescribedBy={ariaDescribedBy}
+                  aria-required="true"
+                />
+              )}
+            </FormField>
 
             {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Description <span className="text-red-400">*</span>
-              </label>
-              <textarea
-                rows={3}
-                value={form.description}
-                onChange={set("description")}
-                required
-                placeholder="Describe the item in detail — color, brand, size, condition…"
-                className={`${inputCls} resize-none`}
-              />
-            </div>
+            <FormField<EditFoundItemValues> name="description" label="Description" errors={errors} required>
+              {({ id, hasError, ariaDescribedBy }) => (
+                <PupTextarea
+                  id={id}
+                  rows={3}
+                  placeholder="Describe the item in detail — color, brand, size, condition…"
+                  {...register("description")}
+                  hasError={hasError}
+                  ariaDescribedBy={ariaDescribedBy}
+                  aria-required="true"
+                  className="resize-none"
+                />
+              )}
+            </FormField>
 
             {/* Category + Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1.5">Category</label>
-                <select value={form.categoryId} onChange={set("categoryId")} className={`${inputCls} cursor-pointer`}>
-                  <option value="">— Select category —</option>
-                  {([...(categoriesData as any)?.data ?? []] as any[])
-                    .sort((a: any, b: any) => {
-                      if (a.name.toLowerCase() === "others") return 1;
-                      if (b.name.toLowerCase() === "others") return -1;
-                      return a.name.localeCompare(b.name);
-                    })
-                    .map((c: any) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                  Date Found <span className="text-red-400">*</span>
-                </label>
                 <input
-                  type="date"
-                  value={form.date}
-                  onChange={set("date")}
-                  required
-                  max={today}
-                  className={inputCls}
+                  type="text"
+                  value={item.category?.name || ""}
+                  disabled
+                  className={cx(inputCls, "cursor-not-allowed opacity-60")}
                 />
+                <p className="text-xs text-gray-500 mt-1">Category cannot be changed</p>
               </div>
+              <FormField<EditFoundItemValues> name="date" label="Date Found" errors={errors} required>
+                {({ id, hasError, ariaDescribedBy }) => (
+                  <input
+                    id={id}
+                    type="date"
+                    max={today}
+                    aria-invalid={hasError ? "true" : undefined}
+                    aria-describedby={ariaDescribedBy}
+                    aria-required="true"
+                    {...register("date")}
+                    className={cx(inputCls, hasError ? "border-red-600/70" : "border-red-900/40")}
+                  />
+                )}
+              </FormField>
             </div>
 
             {/* Location */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                Location <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.location}
-                onChange={set("location")}
-                required
-                placeholder="e.g. CAFA Building, 2nd Floor Hallway"
-                className={inputCls}
-              />
-            </div>
+            <FormField<EditFoundItemValues> name="location" label="Location" errors={errors} required>
+              {({ id, hasError, ariaDescribedBy }) => (
+                <PupInput
+                  id={id}
+                  type="text"
+                  placeholder="e.g. CAFA Building, 2nd Floor Hallway"
+                  {...register("location")}
+                  hasError={hasError}
+                  ariaDescribedBy={ariaDescribedBy}
+                  aria-required="true"
+                />
+              )}
+            </FormField>
 
             {/* Claim instructions */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">
-                How to Claim Instructions
-                <span className="ml-1.5 text-xs text-gray-500 font-normal">(optional)</span>
-              </label>
-              <textarea
-                rows={3}
-                value={form.claimProcess}
-                onChange={set("claimProcess")}
-                placeholder="Describe what the claimer must provide or do to retrieve this item…"
-                className={`${inputCls} resize-none`}
-              />
-            </div>
+            <FormField<EditFoundItemValues> name="claimProcess" label="How to Claim Instructions" errors={errors} hint="(optional)">
+              {({ id, hasError, ariaDescribedBy }) => (
+                <PupTextarea
+                  id={id}
+                  rows={3}
+                  placeholder="Describe what the claimer must provide or do to retrieve this item…"
+                  {...register("claimProcess")}
+                  hasError={hasError}
+                  ariaDescribedBy={ariaDescribedBy}
+                  className="resize-none"
+                />
+              )}
+            </FormField>
 
             {/* Image */}
             <div>
@@ -214,10 +219,10 @@ const EditFoundItemModal = ({ item, onClose, onSuccess }: Props) => {
             </div>
 
             {/* Feedback */}
-            {editError && (
+            {submitError && (
               <div className="flex items-start gap-3 p-3 rounded-lg bg-red-900/20 border border-red-500/40">
                 <span className="text-red-400 mt-0.5 flex-shrink-0 text-sm">✕</span>
-                <p className="text-sm text-red-300">{editError}</p>
+                <p className="text-sm text-red-300">{submitError}</p>
               </div>
             )}
             {editSuccess && (
@@ -239,11 +244,11 @@ const EditFoundItemModal = ({ item, onClose, onSuccess }: Props) => {
           >
             Cancel
           </button>
-          <button
+          <PupButton
             type="submit"
             form="edit-found-item-form"
             disabled={isLoading || editSuccess}
-            className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-red-800 hover:bg-red-700 disabled:bg-red-900/50 disabled:cursor-not-allowed rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-1 focus:ring-offset-gray-900"
+            className="px-5 py-2 text-sm font-semibold"
           >
             {isLoading ? (
               <>
@@ -258,7 +263,7 @@ const EditFoundItemModal = ({ item, onClose, onSuccess }: Props) => {
             ) : (
               "Save Changes"
             )}
-          </button>
+          </PupButton>
         </div>
       </div>
     </div>

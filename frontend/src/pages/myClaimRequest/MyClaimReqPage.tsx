@@ -11,7 +11,10 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaClock,
+  FaQrcode,
 } from "react-icons/fa";
+import { formatDate } from "../../utils/formatDate";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 const MyClaimReqPage = () => {
   const { data: myClaims, isLoading } = useMyClaimsQuery({});
@@ -21,6 +24,8 @@ const MyClaimReqPage = () => {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   // Get status icon and color
   const getStatusConfig = (status: string) => {
@@ -41,6 +46,14 @@ const MyClaimReqPage = () => {
           bgColor: "bg-green-900/30 border-green-500/50",
           textColor: "text-green-300",
           label: "Approved",
+        };
+      case "CLAIMED":
+        return {
+          icon: <FaCheckCircle className="w-4 h-4" />,
+          color: "from-blue-500 to-blue-600",
+          bgColor: "bg-blue-900/30 border-blue-500/50",
+          textColor: "text-blue-300",
+          label: "Claimed / Returned",
         };
       case "REJECTED":
         return {
@@ -118,6 +131,14 @@ const MyClaimReqPage = () => {
 
   const clearSearch = () => {
     setSearchTerm("");
+  };
+
+  const handleViewQRCode = (claim: any) => {
+    // For now, we'll need to fetch the QR code from the backend
+    // Since the backend generates it on approval, we need to call the generate endpoint
+    // For this implementation, we'll show a placeholder or fetch it
+    setQrCodeImage(claim.qrCodeToken ? `data:image/png;base64,${claim.qrCodeToken}` : null);
+    setIsQrModalOpen(true);
   };
 
   if (isLoading) {
@@ -378,26 +399,28 @@ const MyClaimReqPage = () => {
                           <div className="flex items-center">
                             <FaCalendarAlt className="mr-2 text-gray-400" />
                             <span>
-                              {claim?.createdAt
-                                ? new Date(claim.createdAt).toLocaleDateString(
-                                    "en-US",
-                                    {
-                                      month: "short",
-                                      day: "numeric",
-                                      year: "numeric",
-                                    }
-                                  )
-                                : "Date not available"}
+                              {formatDate(claim?.createdAt) || "Date not available"}
                             </span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <Link to={`/found-items/${claim?.foundItem?.id}`}>
-                            <button className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:ring-offset-2 focus:ring-offset-gray-900 shadow-lg hover:shadow-xl border border-red-600/50">
-                              <FaEye className="mr-2" />
-                              View Details
-                            </button>
-                          </Link>
+                          <div className="flex gap-2">
+                            <Link to={`/found-items/${claim?.foundItem?.id}`}>
+                              <button className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:ring-offset-2 focus:ring-offset-gray-900 shadow-lg hover:shadow-xl border border-red-600/50">
+                                <FaEye className="mr-2" />
+                                View Details
+                              </button>
+                            </Link>
+                            {(claim?.status === "APPROVED" || claim?.status === "CLAIMED") && (
+                              <button
+                                onClick={() => handleViewQRCode(claim)}
+                                className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-700 to-blue-800 hover:from-blue-800 hover:to-blue-900 text-white font-semibold rounded-lg transition-all duration-200 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:ring-offset-2 focus:ring-offset-gray-900 shadow-lg hover:shadow-xl border border-blue-600/50"
+                              >
+                                <FaQrcode className="mr-2" />
+                                View QR
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -408,6 +431,52 @@ const MyClaimReqPage = () => {
           </div>
         )}
       </div>
+
+      {/* QR Code Modal */}
+      {isQrModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div ref={useFocusTrap(true)} className="glass-card rounded-xl p-8 w-full max-w-md mx-4">
+            <div className="text-center">
+              <div className="mb-6">
+                <div className="bg-green-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                  <FaQrcode className="text-green-600 text-2xl" />
+                </div>
+                <h2 className="text-xl font-bold gold-text mb-2">
+                  Your Claim QR Code
+                </h2>
+                <p className="text-gray-400 mb-6">
+                  Present this QR code at the property office to claim your item.
+                </p>
+              </div>
+
+              {qrCodeImage ? (
+                <div className="bg-white rounded-lg p-6 mb-6">
+                  <img
+                    src={qrCodeImage}
+                    alt="Claim QR Code"
+                    className="w-full h-auto"
+                  />
+                </div>
+              ) : (
+                <div className="bg-gray-700 rounded-lg p-6 mb-6">
+                  <p className="text-gray-300">QR code will be generated by admin upon approval.</p>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsQrModalOpen(false);
+                  setQrCodeImage(null);
+                }}
+                className="w-full bg-gray-600 hover:bg-gray-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

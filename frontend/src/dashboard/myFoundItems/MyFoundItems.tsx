@@ -23,6 +23,8 @@ import {
   FaEdit,
   FaTrash,
 } from "react-icons/fa";
+import { formatDate } from "../../utils/formatDate";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 const MyFoundItems = () => {
   const { data: myFoundItems, isLoading } = useGetMyFoundItemQuery({});
@@ -330,7 +332,7 @@ const MyFoundItems = () => {
                       <td className="px-6 py-4 text-gray-300">
                         <div className="flex items-center">
                           <FaCalendarAlt className="mr-2 text-gray-400" />
-                          <span>{myFoundItem?.date ? myFoundItem.date.split("T")[0] : "N/A"}</span>
+                          <span>{formatDate(myFoundItem?.date) || "N/A"}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -339,6 +341,7 @@ const MyFoundItems = () => {
                             onClick={() => openModal(myFoundItem)}
                             className="p-2 text-yellow-500 hover:bg-yellow-500 hover:text-white rounded-lg transition-colors duration-200 hover:scale-110"
                             title="Edit item"
+                            aria-label="Edit item"
                           >
                             <FaEdit />
                           </button>
@@ -346,6 +349,7 @@ const MyFoundItems = () => {
                             onClick={() => handleDeleteClick(myFoundItem)}
                             className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors duration-200 hover:scale-110"
                             title="Delete item"
+                            aria-label="Delete item"
                           >
                             <FaTrash />
                           </button>
@@ -362,7 +366,7 @@ const MyFoundItems = () => {
 
       {/* Modal */}
       <Modal show={isOpen} size="md" popup={true} onClose={closeModal}>
-        <div className="glass-card rounded-xl">
+        <div ref={useFocusTrap(true)} className="glass-card rounded-xl">
           <ModalHeader className="border-b border-gray-700">
             <h3 className="text-xl font-medium text-white">Edit Found Item</h3>
           </ModalHeader>
@@ -374,12 +378,15 @@ const MyFoundItems = () => {
                     name="foundItemName"
                     label="Item name"
                     errors={errors}
+                    required
                   >
-                    {({ id, hasError }) => (
+                    {({ id, hasError, ariaDescribedBy }) => (
                       <PupInput
                         id={id}
                         {...register("foundItemName")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="mt-1"
                       />
                     )}
@@ -389,12 +396,15 @@ const MyFoundItems = () => {
                     name="description"
                     label="Description"
                     errors={errors}
+                    required
                   >
-                    {({ id, hasError }) => (
+                    {({ id, hasError, ariaDescribedBy }) => (
                       <PupInput
                         id={id}
                         {...register("description")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="mt-1"
                       />
                     )}
@@ -404,12 +414,15 @@ const MyFoundItems = () => {
                     name="location"
                     label="Location"
                     errors={errors}
+                    required
                   >
-                    {({ id, hasError }) => (
+                    {({ id, hasError, ariaDescribedBy }) => (
                       <PupInput
                         id={id}
                         {...register("location")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="mt-1"
                       />
                     )}
@@ -419,13 +432,16 @@ const MyFoundItems = () => {
                     name="date"
                     label="Date found"
                     errors={errors}
+                    required
                   >
-                    {({ id, hasError }) => (
+                    {({ id, hasError, ariaDescribedBy }) => (
                       <PupInput
                         type="date"
                         id={id}
                         {...register("date")}
                         hasError={hasError}
+                        ariaDescribedBy={ariaDescribedBy}
+                        aria-required="true"
                         className="mt-1"
                       />
                     )}
@@ -506,7 +522,7 @@ const MyFoundItems = () => {
                         </p>
                         <div className="flex justify-between text-sm text-gray-500">
                           <span>Location: {itemToDelete?.location}</span>
-                          <span>Date: {itemToDelete?.date?.split("T")[0]}</span>
+                          <span>Date: {formatDate(itemToDelete?.date)}</span>
                         </div>
                       </div>
                     </div>

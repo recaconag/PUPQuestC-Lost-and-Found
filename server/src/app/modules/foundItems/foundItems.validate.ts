@@ -22,6 +22,10 @@ const createFoundItem = z.object({
     }).trim(),
     date: z.string({
       required_error: "Found date is required",
+    }).refine((val) => !isNaN(Date.parse(val)), {
+      message: "Invalid date format.",
+    }).refine((val) => new Date(val) <= new Date(), {
+      message: "Date cannot be in the future.",
     }),
   }),
 });
@@ -34,7 +38,11 @@ const updateFoundItem = z.object({
     description: z.string().trim().optional(),
     img: z.string().optional(),
     claimProcess: z.string().trim().optional(),
-    date: z.string().optional(),
+    date: z.string().optional().refine((val) => !val || !isNaN(Date.parse(val)), {
+      message: "Invalid date format.",
+    }).refine((val) => !val || new Date(val) <= new Date(), {
+      message: "Date cannot be in the future.",
+    }),
     isClaimed: z.boolean().optional(),
   }),
 });
