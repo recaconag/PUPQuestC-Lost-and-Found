@@ -92,7 +92,7 @@ const ReportLostItem = () => {
 
           {/* Header */}
           <div className="mb-8 text-center">
-            <h1 className="text-3xl font-black bg-gradient-to-r from-red-500 to-yellow-500 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-black bg-gradient-to-r from-red-600 to-yellow-500 bg-clip-text text-transparent">
               Report Lost Item
             </h1>
             <p className="mt-1 text-sm text-gray-400">Describe what you lost so the campus community can help.</p>

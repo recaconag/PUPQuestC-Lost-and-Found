@@ -2,7 +2,6 @@ import { NextFunction, Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import sendResponse, { TMeta } from "../../global/response";
 import { foundItemService } from "./foundItem.service";
-import { utils } from "../../utils/utils";
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
 import { errorResponses } from "../../utils/errorResponse";
@@ -92,14 +91,18 @@ const getFoundItem = async (
   next: NextFunction,
 ) => {
   try {
-    const meta = await utils.calculateMeta(req.query);
     const result = await foundItemService.getFoundItem(req.query);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
       message: "Found items retrieved successfully",
-      meta: meta as TMeta,
-      data: result,
+      meta: {
+        total: result.pagination.total,
+        page: result.pagination.page,
+        limit: result.pagination.limit,
+        totalPage: result.pagination.totalPage,
+      } as TMeta,
+      data: result.data,
     });
   } catch (error) {
     next(error);

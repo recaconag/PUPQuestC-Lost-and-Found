@@ -1,29 +1,36 @@
 import { NextFunction, Request, Response } from "express";
-import { foundItemService } from "../modules/foundItems/foundItem.service";
 import sendResponse from "../global/response";
 import { StatusCodes } from "http-status-codes";
-import { lostItemServices } from "../modules/lostItem/lostItem.service";
-import { userService } from "../modules/user/user.service";
-import { claimsService } from "../modules/claim/claim.service";
+import prisma from "../config/prisma";
 
 export const adminStats = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const [foundItems, lostItems, users, claims] = await Promise.all([
-      foundItemService.getFoundItem({}),
-      lostItemServices.getLostItem(),
-      userService.allUsers(),
-      claimsService.getClaim(),
+    const [
+      totalFoundItems,
+      totalLostItems,
+      totalUsers,
+      totalClaims,
+      pendingClaims,
+      approvedClaims,
+    ] = await Promise.all([
+      prisma.foundItem.count({ where: { isDeleted: false, approvalStatus: "PUBLISHED" } }),
+      prisma.lostItem.count({ where: { isDeleted: false, approvalStatus: "PUBLISHED" } }),
+      prisma.user.count({ where: { isDeleted: false } }),
+      prisma.claim.count({ where: { isDeleted: false } }),
+      prisma.claim.count({ where: { isDeleted: false, status: "PENDING" } }),
+      prisma.claim.count({ where: { isDeleted: false, status: "APPROVED" } }),
     ]);
 
     const result = {
-      foundItems: foundItems.length,
-      lostItems: lostItems.length,
-      totalItems: foundItems.length + lostItems.length,
-      totalUsers: users.length,
-      totalClaims: claims.length,
-      pendingClaims: claims.filter((claim: any) => claim.status === "PENDING").length,
-      approvedClaims: claims.filter((claim: any) => claim.status === "APPROVED").length,
+      foundItems: totalFoundItems,
+      lostItems: totalLostItems,
+      totalItems: totalFoundItems + totalLostItems,
+      totalUsers,
+      totalClaims,
+      pendingClaims,
+      approvedClaims,
     };
+
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,

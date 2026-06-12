@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useGetFoundItemsQuery } from "../../redux/api/api";
 import { Link } from "react-router-dom";
 import { FaSearch, FaFilter, FaCalendarAlt, FaMapMarkerAlt } from "react-icons/fa";
@@ -7,13 +7,23 @@ import { formatDate } from "../../utils/formatDate";
 
 const FoundItemsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState("foundItemName");
   const [sortOrder, setSortOrder] = useState("asc");
   const [limit] = useState(12);
 
+  // Debounce: wait 500ms after the user stops typing before firing the query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const { data: foundItems, isLoading } = useGetFoundItemsQuery({
-    searchTerm,
+    searchTerm: debouncedSearch,
     page: currentPage,
     limit,
     sortBy,
@@ -42,6 +52,7 @@ const FoundItemsPage = () => {
 
   const clearSearch = () => {
     setSearchTerm("");
+    setDebouncedSearch("");
     setCurrentPage(1);
   };
 
@@ -174,9 +185,8 @@ const FoundItemsPage = () => {
         <div className="mb-6">
           <p className="text-center font-medium text-gray-400">
             {searchTerm
-              ? `Search results for "${searchTerm}" - ${foundItems?.data?.length || 0
-              } items found`
-              : `Showing ${foundItems?.data?.length || 0} found items`}
+              ? `Search results for "${searchTerm}" - ${foundItems?.meta?.total || 0} items found`
+              : `Showing ${foundItems?.meta?.total || 0} found items`}
           </p>
         </div>
       </div>

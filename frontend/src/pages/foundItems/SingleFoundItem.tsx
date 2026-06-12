@@ -21,8 +21,6 @@ import { useUserVerification } from "../../auth/auth";
 import { FormField } from "../../ui/forms/FormField";
 import { createClaimSchema, type CreateClaimValues } from "../../ui/forms/schemas";
 import { useZodForm } from "../../ui/forms/useZodForm";
-import { PupInput } from "../../ui/PupInput";
-import { PupTextarea } from "../../ui/PupTextarea";
 import { PupButton } from "../../ui/PupButton";
 import { formatDate } from "../../utils/formatDate";
 
@@ -33,9 +31,30 @@ const SingleFoundItem = () => {
   const navigate = useNavigate();
   const isLoggedIn = !!currentUser;
 
+  // All hooks must come before any conditional returns (Rules of Hooks)
+  const { data: singleFoundItem, isLoading, refetch } =
+    useGetSingleFoundItemQuery(foundItemId!, { skip: !foundItemId });
+
+  const [createClaim, { isLoading: claimLoading }] = useCreateClaimMutation();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const claimModalRef = useFocusTrap(isClaimModalOpen);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useZodForm<typeof createClaimSchema, CreateClaimValues>(createClaimSchema, {
+    defaultValues: { lostDate: "", distinguishingFeatures: "" },
+  });
+
+  // Guard: no foundItemId in the URL
   if (!foundItemId) {
     return (
-      <div className="min-h-screen bg-gray-900 py-8">
+      <div className="min-h-screen bg-gray-950 py-8">
         <div className="container mx-auto px-4">
           <div className="text-center">
             <h1 className="text-3xl font-bold gold-text mb-4">
@@ -56,23 +75,6 @@ const SingleFoundItem = () => {
       </div>
     );
   }
-
-  const { data: singleFoundItem, isLoading, refetch } =
-    useGetSingleFoundItemQuery(foundItemId);
-
-  const [createClaim, { isLoading: claimLoading }] = useCreateClaimMutation();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useZodForm<typeof createClaimSchema, CreateClaimValues>(createClaimSchema, {
-    defaultValues: { lostDate: "", distinguishingFeatures: "" },
-  });
 
   const handleClaimModal = () => {
     if (!isLoggedIn) {
@@ -106,7 +108,7 @@ const SingleFoundItem = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <Spinner size="xl" className="mb-4" />
           <p className="text-gray-400">Loading found item details...</p>
@@ -125,7 +127,7 @@ const SingleFoundItem = () => {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="glass-card rounded-xl p-8">
+          <div className="glass-card rounded-xl p-8 md:p-10">
             <h2 className="text-lg font-semibold gold-text mb-3">Item Not Found</h2>
             <p className="text-gray-400 text-sm mb-6">
               The item you're looking for doesn't exist or may have been removed.
@@ -198,7 +200,7 @@ const SingleFoundItem = () => {
             {/* Details Section */}
             <div className="space-y-8">
               {/* Description */}
-              <div className="glass-card rounded-xl p-5">
+              <div className="glass-card rounded-xl p-6">
                 <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Description</h2>
                 <p className="text-gray-200 leading-relaxed text-sm">
                   {foundItemData?.description ||
@@ -208,7 +210,7 @@ const SingleFoundItem = () => {
 
               {/* Details Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="glass-card rounded-lg p-4">
+                <div className="glass-card rounded-lg p-6">
                   <div className="flex items-center text-gray-400 mb-1.5 gap-2">
                     <FaCalendarAlt className="w-3.5 h-3.5" />
                     <span className="text-xs font-medium uppercase tracking-wide">Date Found</span>
@@ -218,7 +220,7 @@ const SingleFoundItem = () => {
                   </p>
                 </div>
 
-                <div className="glass-card rounded-lg p-4">
+                <div className="glass-card rounded-lg p-6">
                   <div className="flex items-center text-gray-400 mb-1.5 gap-2">
                     <FaMapMarkerAlt className="w-3.5 h-3.5" />
                     <span className="text-xs font-medium uppercase tracking-wide">Location</span>
@@ -228,7 +230,7 @@ const SingleFoundItem = () => {
                   </p>
                 </div>
 
-                <div className="glass-card rounded-lg p-4">
+                <div className="glass-card rounded-lg p-6">
                   <div className="flex items-center text-gray-400 mb-1.5 gap-2">
                     <FaTag className="w-3.5 h-3.5" />
                     <span className="text-xs font-medium uppercase tracking-wide">Category</span>
@@ -238,7 +240,7 @@ const SingleFoundItem = () => {
                   </p>
                 </div>
 
-                <div className="glass-card rounded-lg p-4">
+                <div className="glass-card rounded-lg p-6">
                   <div className="flex items-center text-gray-400 mb-1.5 gap-2">
                     <FaUser className="w-3.5 h-3.5" />
                     <span className="text-xs font-medium uppercase tracking-wide">Reported By</span>
@@ -313,7 +315,7 @@ const SingleFoundItem = () => {
       {/* Custom Claim Modal */}
       {isClaimModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 animate-fade-in">
-          <div ref={useFocusTrap(true)} className="relative w-full max-w-md glass-card rounded-xl animate-scale-in">
+          <div ref={claimModalRef} className="relative w-full max-w-md glass-card rounded-xl animate-scale-in">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-700">
               <h3 className="text-xl font-bold gold-text">Claim Process</h3>

@@ -49,6 +49,7 @@ import VerifyEmail from "./pages/verifyEmail/VerifyEmail.tsx";
 import ForgotPassword from "./pages/forgotPassword/ForgotPassword.tsx";
 import RecoveryOtp from "./pages/forgotPassword/RecoveryOtp.tsx";
 import ResetPassword from "./pages/forgotPassword/ResetPassword.tsx";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const router = createBrowserRouter([
   {
@@ -152,7 +153,7 @@ const router = createBrowserRouter([
       {
         path: "settings",
         element: (
-          <ProtectedRoute>
+          <ProtectedRoute adminOnly>
             <DashboardLayout><Settings /></DashboardLayout>
           </ProtectedRoute>
         ),
@@ -187,8 +188,10 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <Providers>
-      <RouterProvider router={router} />
-    </Providers>
+    <ErrorBoundary>
+      <Providers>
+        <RouterProvider router={router} />
+      </Providers>
+    </ErrorBoundary>
   </StrictMode>
 );

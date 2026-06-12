@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FaTrash, FaSearch, FaShieldAlt, FaUser, FaBan } from "react-icons/fa";
+import { FaTrash, FaSearch, FaShieldAlt, FaUser, FaBan, FaCheckSquare, FaSquare } from "react-icons/fa";
 import {
   useGetAllUsersQuery,
   useBlockUserMutation,
@@ -44,6 +44,8 @@ const UsersManagement = () => {
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Debounce search term
   useEffect(() => {
@@ -118,6 +120,45 @@ const UsersManagement = () => {
     setIsDeleteModalOpen(false);
     setDeletingUser(null);
     setIsDeleteLoading(false);
+  };
+
+  const handleSelectItem = (userId: string) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.size === users.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(users.map((user: User) => user.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) return;
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedItems.size} user(s)?`)) {
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      const promises = Array.from(selectedItems).map(id => softDeleteUser(id).unwrap());
+      await Promise.all(promises);
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error("[UsersManagement] Bulk delete failed:", error);
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   const getRoleColor = (role: string) => {
@@ -286,47 +327,97 @@ const UsersManagement = () => {
 
       {/* Users Table */}
       <div className="glass-card rounded-xl overflow-hidden">
+        {/* Bulk Actions Bar */}
+        {selectedItems.size > 0 && (
+          <div className="bg-gray-800/50 border-b border-yellow-700/20 px-4 py-3 flex items-center justify-between">
+            <span className="text-sm text-gray-300">
+              {selectedItems.size} user{selectedItems.size !== 1 ? 's' : ''} selected
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting}
+                className="inline-flex items-center px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaTrash className="mr-1" />
+                Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedItems(new Set())}
+                className="inline-flex items-center px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/70 border-b border-yellow-700/15">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                  <button
+                    onClick={handleSelectAll}
+                    className="flex items-center gap-2 hover:text-yellow-400 transition-colors"
+                    title={selectedItems.size === users.length ? "Deselect all" : "Select all"}
+                  >
+                    {selectedItems.size === users.length && users.length > 0 ? (
+                      <FaCheckSquare className="w-4 h-4" />
+                    ) : (
+                      <FaSquare className="w-4 h-4" />
+                    )}
+                  </button>
+                </th>
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   User
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden sm:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Role
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Status
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden md:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Joined
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {filteredUsers.map((user: User) => (
+              {users.map((user: User) => (
                 <tr
                   key={user.id}
                   className="hover:bg-yellow-900/10 transition-colors"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
+                    <button
+                      onClick={() => handleSelectItem(user.id)}
+                      className="hover:text-yellow-400 transition-colors"
+                      title={selectedItems.has(user.id) ? "Deselect" : "Select"}
+                    >
+                      {selectedItems.has(user.id) ? (
+                        <FaCheckSquare className="w-4 h-4" />
+                      ) : (
+                        <FaSquare className="w-4 h-4" />
+                      )}
+                    </button>
+                  </td>
+                  <td className="px-4 sm:px-6 py-4">
                     <div className="flex items-center space-x-3">
                       {getRoleIcon(user.role)}
                       <div>
-                        <div className="font-medium text-white">
+                        <div className="font-medium text-white text-sm sm:text-base">
                           {user.name}
                         </div>
-                        <div className="text-sm text-gray-400">
+                        <div className="text-xs sm:text-sm text-gray-400">
                           {user.email}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="hidden sm:table-cell px-6 py-4">
                     <select
                       value={user.role}
                       onChange={(e) =>
@@ -340,7 +431,7 @@ const UsersManagement = () => {
                       <option value="ADMIN">Admin</option>
                     </select>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <select
                       value={user.status}
                       onChange={(e) =>
@@ -354,19 +445,19 @@ const UsersManagement = () => {
                       <option value="SUSPENDED">Suspended</option>
                     </select>
                   </td>
-                  <td className="px-6 py-4 text-gray-300">
+                  <td className="hidden md:table-cell px-6 py-4 text-gray-300">
                     {formatDate(user.createdAt)}
                   </td>
 
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-2">
+                  <td className="px-4 sm:px-6 py-4">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
                       <button
                         onClick={() => handleDelete(user)}
-                        className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
+                        className="p-1.5 sm:p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
                         title="Delete User"
                         aria-label="Delete User"
                       >
-                        <FaTrash />
+                        <FaTrash className="w-4 h-4" />
                       </button>
                     </div>
                   </td>

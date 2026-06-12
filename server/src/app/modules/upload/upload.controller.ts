@@ -5,10 +5,9 @@ import { systemSettingsService } from "../systemSettings/systemSettings.service"
 import fs from "fs";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { v2 as cloudinary } from "cloudinary";
-import { PrismaClient } from "@prisma/client"; // 1. IDINAGDAG: Import Prisma Client para sa DB lookup
+import prisma from "../../config/prisma";
 import { errorResponses } from "../../utils/errorResponse";
 
-const prisma = new PrismaClient(); // Initialize prisma connection instance
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -82,10 +81,6 @@ const uploadAndAnalyzeImageAI = async (
       );
     }
 
-    console.log(
-      "[Phase 3 Engine] Uploading file streaming matrix straight to Cloudinary...",
-    );
-
     const fileSource = req.file.buffer
       ? req.file.buffer
       : fs.readFileSync(req.file.path);
@@ -120,11 +115,6 @@ const uploadAndAnalyzeImageAI = async (
       fs.unlink(req.file.path, () => { });
     }
 
-    console.log(
-      "[Phase 3 Engine] Cloudinary secure link initialized:",
-      cloudinaryUrl,
-    );
-
     const imagePartForGemini = {
       inlineData: {
         data: fileBase64,
@@ -156,16 +146,6 @@ const uploadAndAnalyzeImageAI = async (
     const cleanJsonString = cleanRawText.replace(/```json|```/g, "").trim();
     const parsedAiAnalysisMetadata = JSON.parse(cleanJsonString);
 
-    console.log(
-      "[Phase 3 Engine] Dynamic analysis complete:",
-      parsedAiAnalysisMetadata,
-    );
-
-    // =========================================================================
-    // 🔍 ULTIMATE FUZZY MATCHING PIPELINE (KAHIT ISANG SALITA LANG MAGKA-SAME)
-    // =========================================================================
-    console.log("[Phase 3 Engine] Running hyper-flexible word splitter...");
-
     const itemNameClean = parsedAiAnalysisMetadata.itemName || "";
     const categoryName = parsedAiAnalysisMetadata.inferredCategory || "";
     const searchColor = parsedAiAnalysisMetadata.color || "";
@@ -180,9 +160,7 @@ const uploadAndAnalyzeImageAI = async (
     // Kung walang words na nakuha, gamitin ang buong pangalan
     if (words.length === 0) words.push(itemNameClean);
 
-    console.log("[Phase 3 Engine] Splitted keywords to scan:", words);
-
-    // BUMUONG AGRESIBONG OR CONDITIONS: Kahit isa lang sa mga salitang ito ang tumama sa name o description, HILAHIN!
+    // Build broad OR search conditions across all keywords
     const broadSearchConditions = {
       OR: [
         ...words.map((word: string) => ({
@@ -223,20 +201,17 @@ const uploadAndAnalyzeImageAI = async (
       include: { category: true, user: true },
     });
 
-    console.log(`[Phase 3 Engine] Brute-force match found: ${matchedFoundItems.length} found, ${matchedLostItems.length} lost.`);
-
-    // I-map nang maayos para siguradong may valid fallback values at hindi mag-undefined sa frontend
     const foundItemsWithScores = matchedFoundItems.map((item) => ({
       id: item.id,
       foundItemName: item.foundItemName,
       description: item.description || "",
       location: item.location || "Unknown Location",
       date: item.date,
-      img: item.img || item.image || "", // DOUBLE CHECK: Saluhin kung 'img' o 'image' ang field sa DB mo
+      img: item.img || "",
       isClaimed: item.isClaimed ?? false,
       category: item.category || { name: categoryName },
       user: item.user || { name: "System User" },
-      similarityScore: 95, // I-force natin sa mataas na match score para sa UI
+      similarityScore: 95,
     }));
 
     const lostItemsWithScores = matchedLostItems.map((item) => ({
@@ -245,7 +220,7 @@ const uploadAndAnalyzeImageAI = async (
       description: item.description || "",
       location: item.location || "Unknown Location",
       date: item.date,
-      img: item.img || item.image || "",
+      img: item.img || "",
       category: item.category || { name: categoryName },
       user: item.user || { name: "System User" },
       similarityScore: 95,

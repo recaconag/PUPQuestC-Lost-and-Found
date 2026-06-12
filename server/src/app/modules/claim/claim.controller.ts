@@ -83,9 +83,6 @@ const updateClaimStatus = async (
   }
 };
 
-// =========================================================================
-// EMERGING TECH PHASE 4: GENERATE QR CODE GENERATOR PIPELINE FOR ADMIN
-// =========================================================================
 const generateClaimQRCodeImage = async (
   req: Request,
   res: Response,
@@ -94,55 +91,88 @@ const generateClaimQRCodeImage = async (
   try {
     const { claimId } = req.params;
 
-    // A. I-verify kung umiiral ang claim record sa database via Prisma
     const existingClaim = await prisma.claim.findUnique({
       where: { id: claimId },
       include: { foundItem: true },
     });
 
     if (!existingClaim) {
-      res
-        .status(StatusCodes.NOT_FOUND)
-        .json({
-          success: false,
-          message: "Claim record tracking hash not found",
-        });
+      res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Claim record not found",
+      });
       return;
     }
 
-    // B. Gumawa ng isang secure, cryptographically unique string token identifier
+    // Guard: User must be ADMIN or the owner of the claim
+    if (req.user.role !== "ADMIN" && existingClaim.userId !== req.user.id) {
+      res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "You are not authorized to view this QR code",
+      });
+      return;
+    }
+
+    // M4: Guard — if a token already exists, return it without regenerating
+    if (existingClaim.qrCodeToken) {
+      const existingQrCode = await QRCode.toDataURL(existingClaim.qrCodeToken, {
+        errorCorrectionLevel: "H",
+        margin: 2,
+        width: 300,
+      });
+      sendResponse(res, {
+        statusCode: StatusCodes.OK,
+        success: true,
+        message: "Existing verification QR Code returned",
+        data: {
+          token: existingClaim.qrCodeToken,
+          qrCodeImage: existingQrCode,
+        },
+      });
+      return;
+    }
+
     const secureRandomToken = `PUPQC-CLAIM-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
 
-    // C. I-save ang token sa database at i-set ang state status bilang APPROVED
-    const updatedClaim = await prisma.claim.update({
-      where: { id: claimId },
-      data: {
-        qrCodeToken: secureRandomToken,
-        status: "APPROVED", // Automatic status change to APPROVED
-      },
-    });
+    // Execute in a transaction to approve claim, update item status, and reject other pending claims
+    await prisma.$transaction([
+      prisma.claim.update({
+        where: { id: claimId },
+        data: {
+          qrCodeToken: secureRandomToken,
+          status: "APPROVED",
+        },
+      }),
+      prisma.foundItem.update({
+        where: { id: existingClaim.foundItemId },
+        data: { isClaimed: true },
+      }),
+      prisma.claim.updateMany({
+        where: {
+          foundItemId: existingClaim.foundItemId,
+          id: { not: claimId },
+          status: "PENDING",
+        },
+        data: { status: "REJECTED" },
+      }),
+    ]);
 
-    // D. I-convert ang raw text token into a clean Base64 visual QR Code data-URI string
     const generatedQrCodeBase64String = await QRCode.toDataURL(
       secureRandomToken,
       {
-        errorCorrectionLevel: "H", // High reliability verification mapping
+        errorCorrectionLevel: "H",
         margin: 2,
         width: 300,
       },
     );
 
-    console.log(
-      "[Phase 4 Engine] Secure verification QR token mapped & rendered successfully!",
-    );
-
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
-      message: "Verification QR Code schema generated successfully",
+      message: "Verification QR Code generated successfully",
       data: {
         token: secureRandomToken,
-        qrCodeImage: generatedQrCodeBase64String, // Base64 string link for <img src={...}/> in React frontend
+        qrCodeImage: generatedQrCodeBase64String,
       },
     });
   } catch (error) {
@@ -157,52 +187,43 @@ const verifyClaimQRCodeScanner = async (
 ) => {
   try {
     const { scannedToken } = req.body;
-    const { claimId } = req.params; // Kumuha rin sa URL query fallback indicators
+    const { claimId } = req.params;
 
-    console.log(
-      "[Phase 4 Engine] Invoking scan verification metrics. Token:", scannedToken, "ID:", claimId
-    );
-
-    // A. Hanapin sa database gamit ang Token, kung wala, gamitin ang Claim ID mula sa scanner URL path
     let targetClaimRecord = null;
 
     if (scannedToken) {
       targetClaimRecord = await prisma.claim.findUnique({
         where: { qrCodeToken: scannedToken },
-        include: { foundItem: true },
+        include: { foundItem: true, user: true },
       });
     } else if (claimId) {
       targetClaimRecord = await prisma.claim.findUnique({
         where: { id: claimId },
-        include: { foundItem: true },
+        include: { foundItem: true, user: true },
       });
     }
 
     if (!targetClaimRecord) {
-      res
-        .status(StatusCodes.NOT_FOUND)
-        .json({
-          success: false,
-          message: "Invalid or forged claim verification security token code string",
-        });
+      res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Invalid or forged claim verification token",
+      });
       return;
     }
 
     if (targetClaimRecord.status === "CLAIMED") {
-      res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({
-          success: false,
-          message: "Security Warning: This token has already been scanned and item was successfully released previously!",
-        });
+      res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "This token has already been used. The item was previously released.",
+      });
       return;
     }
 
-    // B. I-update ang Claim status to CLAIMED at FoundItem to isClaimed = true sa isang secure atomic database transaction
+    // M3: Use a transaction to mark CLAIMED, set isClaimed, and clear the QR token
     await prisma.$transaction([
       prisma.claim.update({
         where: { id: targetClaimRecord.id },
-        data: { status: "CLAIMED" },
+        data: { status: "CLAIMED", qrCodeToken: null },
       }),
       prisma.foundItem.update({
         where: { id: targetClaimRecord.foundItemId },
@@ -210,14 +231,10 @@ const verifyClaimQRCodeScanner = async (
       }),
     ]);
 
-    console.log(
-      "[Phase 4 Engine] Transaction database update success. Item officially released safely!",
-    );
-
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
-      message: "Verification successful! The item has been officially authenticated and successfully released to the rightful owner.",
+      message: "Verification successful! The item has been officially released to the rightful owner.",
       data: {
         claimDetails: targetClaimRecord,
       },

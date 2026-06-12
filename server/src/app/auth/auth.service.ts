@@ -7,8 +7,10 @@ import { send2FAEmail, sendPasswordRecoveryEmail, validateSmtpConfig } from "../
 import { systemSettingsService } from "../modules/systemSettings/systemSettings.service";
 import config from "../config/config";
 
+import crypto from "crypto";
+
 const generateOtp = (): string =>
-  Math.floor(100000 + Math.random() * 900000).toString();
+  crypto.randomInt(100000, 999999).toString();
 
 const LOCK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -126,7 +128,6 @@ const verify2FA = async (userId: string, otp: string) => {
 };
 
 const newPasswords = async (data: any, user: JwtPayload) => {
-  console.log(data.newPassword);
   if (data.currentPassword === data.newPassword) {
     throw new AppError(StatusCodes.BAD_REQUEST, "Password is same");
   }
@@ -157,25 +158,27 @@ const newPasswords = async (data: any, user: JwtPayload) => {
   });
 };
 
-const changeEmail = async (email: any, user: JwtPayload) => {
-  // console.log(email);
-  const existedUser: any = await prisma.user.findFirst({
-    where: { ...email, isDeleted: false },
-  });
-  // console.log(user);
+const changeEmail = async (body: any, user: JwtPayload) => {
+  const newEmail: string = body.email;
 
-  // console.log(existedUser);
+  if (!newEmail) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "New email address is required.");
+  }
+
+  const existedUser = await prisma.user.findFirst({
+    where: { email: newEmail, isDeleted: false },
+  });
+
   if (existedUser) {
     throw new AppError(
       StatusCodes.CONFLICT,
-      "Email already exists. Try new one!"
+      "Email already exists. Try a different one!"
     );
   }
+
   await prisma.user.update({
-    where: {
-      id: user.id,
-    },
-    data: email,
+    where: { id: user.id },
+    data: { email: newEmail },
   });
 };
 
@@ -304,6 +307,7 @@ const resetPassword = async (email: string, otp: string, newPassword: string) =>
       password: hashedPassword,
       otpCode: null,
       otpExpiry: null,
+      lastPasswordChange: new Date(),
     },
   });
 };

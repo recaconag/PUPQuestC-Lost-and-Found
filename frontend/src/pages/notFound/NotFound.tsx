@@ -33,7 +33,7 @@ const NotFound = () => {
 
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight gold-text mb-4 leading-tight">
           Lost in{" "}
-          <span className="bg-gradient-to-r from-red-600 via-red-500 to-yellow-500 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-red-600 to-yellow-500 bg-clip-text text-transparent">
             Space?
           </span>
         </h1>

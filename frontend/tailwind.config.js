@@ -1,8 +1,9 @@
-import flowbiteReact from "flowbite-react/plugin/tailwindcss";
+﻿import flowbiteReact from "flowbite-react/plugin/tailwindcss";
 
 /** @type {import('tailwindcss').Config} */
 export default {
- content: [
+  darkMode: 'class',
+  content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
     "node_modules/flowbite-react/dist/esm/**/*.mjs"
@@ -15,17 +16,15 @@ export default {
       colors: {
         red: {
           600: "#990000",
-          700: "#800000", // Official PUP Maroon
+          700: "#800000",
           800: "#660000",
           900: "#4d0000",
         },
-        // Ina-assign ang PUP Gold sa standard yellow scale
         yellow: {
           400: "#facc15",
-          500: "#eab308", // Official PUP Gold
+          500: "#eab308",
           600: "#ca8a04",
         },
-        // Custom brand utility for specific semantic use
         brand: {
           maroon: "#800000",
           gold: "#eab308",

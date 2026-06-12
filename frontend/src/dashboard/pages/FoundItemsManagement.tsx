@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FaEdit, FaTrash, FaEye, FaSearch, FaCheck } from "react-icons/fa";
+import { FaEdit, FaTrash, FaEye, FaSearch, FaCheck, FaCheckSquare, FaSquare } from "react-icons/fa";
 import {
   useDeleteMyFoundItemMutation,
   useEditMyFoundItemMutation,
@@ -42,6 +42,9 @@ const FoundItemsManagement = () => {
   });
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
 
   // Debounce search term
   useEffect(() => {
@@ -132,6 +135,70 @@ const FoundItemsManagement = () => {
     setIsDeleteLoading(false);
   };
 
+  const handleSelectItem = (itemId: string) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.size === items.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(items.map((item: FoundItem) => item.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) return;
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedItems.size} item(s)?`)) {
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      const promises = Array.from(selectedItems).map(id => deleteFoundItem(id).unwrap());
+      await Promise.all(promises);
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error("[FoundItemsManagement] Bulk delete failed:", error);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    const pendingItems = items.filter((item: FoundItem) =>
+      item.approvalStatus === "PENDING" && selectedItems.has(item.id)
+    );
+
+    if (pendingItems.length === 0) {
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to approve ${pendingItems.length} pending item(s)?`)) {
+      return;
+    }
+
+    setIsBulkApproving(true);
+    try {
+      const promises = pendingItems.map((item: FoundItem) => approveFoundItem(item.id).unwrap());
+      await Promise.all(promises);
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error("[FoundItemsManagement] Bulk approve failed:", error);
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -159,10 +226,22 @@ const FoundItemsManagement = () => {
     );
   }
 
-  const items = foundItemsData?.data || [];
+  const rawItems = foundItemsData?.data || [];
   const pagination = foundItemsData?.meta;
 
-  const pendingCount = items.filter((i: FoundItem) => i.approvalStatus === "PENDING").length;
+  // Apply client-side filters
+  const items = rawItems.filter((item: FoundItem) => {
+    const matchesStatus =
+      statusFilter === "ALL" ||
+      (statusFilter === "ACTIVE" && !item.isClaimed && item.approvalStatus === "PUBLISHED" && !item.isExpired) ||
+      (statusFilter === "CLAIMED" && item.isClaimed) ||
+      (statusFilter === "PENDING" && item.approvalStatus === "PENDING");
+    const matchesCategory =
+      categoryFilter === "ALL" || item.category?.name === categoryFilter;
+    return matchesStatus && matchesCategory;
+  });
+
+  const pendingCount = rawItems.filter((i: FoundItem) => i.approvalStatus === "PENDING").length;
 
   const getStatusBadge = (item: FoundItem) => {
     if (item.approvalStatus === "PENDING") return <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30">Pending</span>;
@@ -218,11 +297,11 @@ const FoundItemsManagement = () => {
             </div>
           </div>
 
-          <div className="flex gap-4">
+          <div className="grid grid-cols-2 gap-4 w-full sm:flex sm:w-auto">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200"
+              className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 w-full"
             >
               <option value="ALL">All Status</option>
               <option value="ACTIVE">Active</option>
@@ -233,87 +312,147 @@ const FoundItemsManagement = () => {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200"
+              className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 w-full"
             >
               <option value="ALL">All Categories</option>
-              <option value="Electronics">Electronics</option>
-              <option value="Personal Items">Personal Items</option>
-              <option value="Keys">Keys</option>
-              <option value="Documents">Documents</option>
+              {((foundItemsData?.data || []) as FoundItem[])
+                .map((item: FoundItem) => item.category?.name)
+                .filter((name, idx, arr) => name && arr.indexOf(name) === idx)
+                .map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
             </select>
           </div>
         </div>
       </div>
 
       {/* Items Table */}
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="glass-card rounded-xl overflow-hidden max-w-full">
+        {/* Bulk Actions Bar */}
+        {selectedItems.size > 0 && (
+          <div className="bg-gray-800/50 border-b border-yellow-700/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span className="text-sm text-gray-300">
+              {selectedItems.size} item{selectedItems.size !== 1 ? 's' : ''} selected
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleBulkApprove}
+                disabled={isBulkApproving || isBulkDeleting}
+                className="inline-flex items-center px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaCheck className="mr-1" />
+                Approve Selected
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting || isBulkApproving}
+                className="inline-flex items-center px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaTrash className="mr-1" />
+                Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedItems(new Set())}
+                className="inline-flex items-center px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="w-full overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/70 border-b border-yellow-700/15">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                  <button
+                    onClick={handleSelectAll}
+                    className="flex items-center gap-2 hover:text-yellow-400 transition-colors"
+                    title={selectedItems.size === items.length ? "Deselect all" : "Select all"}
+                  >
+                    {selectedItems.size === items.length && items.length > 0 ? (
+                      <FaCheckSquare className="w-4 h-4" />
+                    ) : (
+                      <FaSquare className="w-4 h-4" />
+                    )}
+                  </button>
+                </th>
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Item
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden sm:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Category
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden md:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Location
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden lg:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Date Found
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Status
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden sm:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Reported By
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {filteredItems.map((item: FoundItem) => (
+              {items.map((item: FoundItem) => (
                 <tr
                   key={item.id}
                   className="hover:bg-yellow-900/10 transition-colors"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
+                    <button
+                      onClick={() => handleSelectItem(item.id)}
+                      className="hover:text-yellow-400 transition-colors"
+                      title={selectedItems.has(item.id) ? "Deselect" : "Select"}
+                    >
+                      {selectedItems.has(item.id) ? (
+                        <FaCheckSquare className="w-4 h-4" />
+                      ) : (
+                        <FaSquare className="w-4 h-4" />
+                      )}
+                    </button>
+                  </td>
+                  <td className="px-4 sm:px-6 py-4">
                     <div>
-                      <div className="font-medium text-white">
+                      <div className="font-medium text-white text-sm sm:text-base">
                         {item.foundItemName}
                       </div>
-                      <div className="text-sm text-gray-400 truncate max-w-xs">
+                      <div className="text-xs sm:text-sm text-gray-400 truncate max-w-[150px] sm:max-w-xs">
                         {item.description}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-300">
+                  <td className="hidden sm:table-cell px-6 py-4 text-gray-300">
                     {item.category?.name || "N/A"}
                   </td>
-                  <td className="px-6 py-4 text-gray-300">{item.location}</td>
-                  <td className="px-6 py-4 text-gray-300">
+                  <td className="hidden md:table-cell px-6 py-4 text-gray-300">{item.location}</td>
+                  <td className="hidden lg:table-cell px-6 py-4 text-gray-300">
                     {formatDate(item.date) || "N/A"}
                   </td>
-                  <td className="px-6 py-4">{getStatusBadge(item)}</td>
-                  <td className="px-6 py-4 text-gray-300">
+                  <td className="px-4 sm:px-6 py-4">{getStatusBadge(item)}</td>
+                  <td className="hidden sm:table-cell px-6 py-4 text-gray-300">
                     {item.user?.name || item.user?.email || "N/A"}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-2">
+                  <td className="px-4 sm:px-6 py-4">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
                       {item.approvalStatus === "PENDING" && (
                         <button
                           onClick={() => approveFoundItem(item.id)}
                           title="Approve & Publish"
-                          className="p-2 text-green-400 hover:bg-green-600 hover:text-white rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 text-green-400 hover:bg-green-600 hover:text-white rounded-lg transition-colors"
                         >
-                          <FaCheck />
+                          <FaCheck className="w-4 h-4" />
                         </button>
                       )}
-                      <button onClick={() => handleEdit(item)} className="p-2 text-yellow-500 hover:bg-yellow-500 hover:text-white rounded-lg transition-colors"><FaEdit /></button>
-                      <button onClick={() => handleDelete(item)} className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"><FaTrash /></button>
+                      <button onClick={() => handleEdit(item)} title="Edit this item" className="p-1.5 sm:p-2 text-yellow-500 hover:bg-yellow-500 hover:text-white rounded-lg transition-colors"><FaEdit className="w-4 h-4" /></button>
+                      <button onClick={() => handleDelete(item)} title="Delete this item" className="p-1.5 sm:p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"><FaTrash className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>

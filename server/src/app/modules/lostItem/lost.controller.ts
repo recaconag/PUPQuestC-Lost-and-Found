@@ -38,7 +38,7 @@ const toggleFoundStatus = async (
     }
 
     const { id } = req.body;
-    const result = await lostItemServices.toggleFoundStatus(id);
+    const result = await lostItemServices.toggleFoundStatus(id, req.user);
     const message = result.isFound
       ? "Item marked as found successfully"
       : "Item marked as not found successfully";
@@ -123,12 +123,18 @@ const createLostItem = async (
 
 const getLostItem = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await lostItemServices.getLostItem();
+    const result = await lostItemServices.getLostItem(req.query);
     sendResponse(res, {
       statusCode: StatusCodes.OK,
       success: true,
       message: "Lost items retrieved successfully",
-      data: result,
+      meta: {
+        total: result.pagination.total,
+        page: result.pagination.page,
+        limit: result.pagination.limit,
+        totalPage: result.pagination.totalPage,
+      },
+      data: result.data,
     });
   } catch (error) {
     next(error);

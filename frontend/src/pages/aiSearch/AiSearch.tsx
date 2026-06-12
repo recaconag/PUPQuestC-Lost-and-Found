@@ -56,45 +56,12 @@ const AiSearch: React.FC = () => {
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const [aiSearch, { isLoading }] = useAiSearchMutation();
+  const [triggerAiSearch, { isLoading }] = useAiSearchMutation();
   const [aiImageSearch, { isLoading: isImageLoading }] =
     useAiImageSearchMutation();
   const navigate = useNavigate();
   const currentUser = useUserVerification();
 
-  const compressImage = (
-    file: File,
-    maxDim = 800,
-    quality = 0.75,
-  ): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          if (width >= height) {
-            height = Math.round((height / width) * maxDim);
-            width = maxDim;
-          } else {
-            width = Math.round((width / height) * maxDim);
-            height = maxDim;
-          }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error("Image load failed"));
-      };
-      img.src = objectUrl;
-    });
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -132,15 +99,6 @@ const AiSearch: React.FC = () => {
     setSearchError(null);
 
     try {
-      // 🚀 UNANG HAKBANG: Kunin muna natin ang lahat ng active items mula sa database
-      const [foundRes, lostRes] = await Promise.all([
-        fetch("http://localhost:5000/api/found-items").then(r => r.json()),
-        fetch("http://localhost:5000/api/lost-items").then(r => r.json())
-      ]);
-
-      const rawFoundList = foundRes?.data?.result || foundRes?.data || foundRes || [];
-      const rawLostList = lostRes?.data?.result || lostRes?.data || lostRes || [];
-
       // =========================================================================
       // 📸 CASE A: KAPAG LARAWAN ANG GINAMIT (IMAGE SEARCH MODE)
       // =========================================================================
@@ -159,27 +117,11 @@ const AiSearch: React.FC = () => {
 
         if (!detectedName) throw new Error("AI was unable to identify the object name from the photo.");
 
-        // Kunin ang unang keyword (e.g., "Samsung")
-        const primaryKeyword = detectedName.toLowerCase().split(" ")[0] || detectedName.toLowerCase();
-
-        // I-filter ang mga items na may kaparehong salita o kulay
-        const matchedFound = rawFoundList.filter((item: any) => {
-          const nameMatch = item.foundItemName?.toLowerCase().includes(primaryKeyword);
-          const descMatch = item.description?.toLowerCase().includes(primaryKeyword);
-          return (nameMatch || descMatch) && !item.isClaimed;
-        });
-
-        const matchedLost = rawLostList.filter((item: any) => {
-          const nameMatch = item.lostItemName?.toLowerCase().includes(primaryKeyword);
-          const descMatch = item.description?.toLowerCase().includes(primaryKeyword);
-          return nameMatch || descMatch;
-        });
-
         setSearchResults({
-          foundItems: matchedFound.map(i => ({ ...i, similarityScore: 95 })),
-          lostItems: matchedLost.map(i => ({ ...i, similarityScore: 95 })),
-          totalFound: matchedFound.length,
-          totalLost: matchedLost.length,
+          foundItems: serverData.foundItems || [],
+          lostItems: serverData.lostItems || [],
+          totalFound: serverData.totalFound || 0,
+          totalLost: serverData.totalLost || 0,
           searchMode: "image",
           reasoning: `Cross-referenced image token "${detectedName}" against active database entries.`,
           extractedDescription: `Item: ${detectedName} | Color: ${detectedColor} | Category: ${detectedCategory}`,
@@ -199,53 +141,30 @@ const AiSearch: React.FC = () => {
       }
 
       // =========================================================================
-      // 📝 CASE B: KAPAG TEXT ANG ITINYPE MO (TEXT SEARCH MODE - SUPER FUZZY)
+      // 📝 CASE B: KAPAG TEXT ANG ITINYPE MO (TEXT SEARCH MODE - AI VECTOR)
       // =========================================================================
       if (!searchQuery.trim()) return;
 
-      console.log(`[PUPQuestC Engine] Local text scanner active for query: "${searchQuery}"`);
+      console.log(`[PUPQuestC Engine] Calling AI Semantic Search for query: "${searchQuery}"`);
 
-      // Linisin ang query: tanggalin ang mga bantas tulad ng ?, !, ., at panatilihin ang letters/numbers
-      const cleanQuery = searchQuery.toLowerCase().replace(/[?!.,]/g, "");
-
-      // Himayin sa maliliit na salita at alisin ang maiikli/karaniwang salita (filler words)
-      const inputWords = cleanQuery.split(" ").filter(w => w.length > 2);
-      if (inputWords.length === 0) inputWords.push(cleanQuery);
-
-      // Matalinong kasingkahulugan (Synonyms mapping matrix)
-      // Kapag may naghanap ng "cellphone", automatic na isasama natin sa hahanapin ang "smartphone" o "phone"
-      if (inputWords.includes("cellphone") || inputWords.includes("cellphones")) {
-        inputWords.push("phone", "smartphone", "samsung");
-      }
-
-      console.log("[PUPQuestC Engine] Cleaned fuzzy keywords to scan:", inputWords);
-
-      // I-filter ang listahan: basta may kahit ISANG keyword na tumama sa pangalan, description, o location, HILAHIN AGAD!
-      const textMatchedFound = rawFoundList.filter((item: any) => {
-        const targetString = `${item.foundItemName || ""} ${item.description || ""} ${item.location || ""}`.toLowerCase();
-        return inputWords.some(word => targetString.includes(word));
-      });
-
-      const textMatchedLost = rawLostList.filter((item: any) => {
-        const targetString = `${item.lostItemName || ""} ${item.description || ""} ${item.location || ""}`.toLowerCase();
-        return inputWords.some(word => targetString.includes(word));
-      });
+      const searchResponse = await triggerAiSearch({ query: searchQuery }).unwrap();
+      const serverData = searchResponse.data || searchResponse;
 
       setSearchResults({
-        foundItems: textMatchedFound.map(i => ({ ...i, similarityScore: 90 })),
-        lostItems: textMatchedLost.map(i => ({ ...i, similarityScore: 90 })),
-        totalFound: textMatchedFound.length,
-        totalLost: textMatchedLost.length,
+        foundItems: serverData.foundItems || [],
+        lostItems: serverData.lostItems || [],
+        totalFound: serverData.totalFound || 0,
+        totalLost: serverData.totalLost || 0,
         searchMode: "text",
-        reasoning: `Super fuzzy client-side scanning successfully isolated relevant records for keywords: [${inputWords.join(", ")}].`,
+        reasoning: serverData.reasoning || "AI Semantic Text Vector Matching completed.",
         geminiAnalysis: {
           originalQuery: searchQuery,
-          detectedItem: inputWords[0] || "Item Query",
+          detectedItem: searchQuery,
           detectedColor: "Multi",
           canonicalColor: "Multi",
-          colorReasoning: "Evaluated from text keywords.",
-          expandedKeywords: inputWords,
-          analysisText: `Searching the system tables for items matching your phrase features.`,
+          colorReasoning: "Analyzed semantically by Hugging Face embedding processor.",
+          expandedKeywords: [searchQuery],
+          analysisText: `Searching the system tables for items semantically matching: "${searchQuery}"`,
           closestMatch: null
         }
       });
@@ -551,7 +470,7 @@ const AiSearch: React.FC = () => {
                       Gemini Vision — Extracted Description
                     </p>
                     <p className="text-gray-300 text-sm leading-relaxed">
-                      "{searchResults.extractedDescription}"
+                      {searchResults.extractedDescription}
                     </p>
                   </div>
                 </div>

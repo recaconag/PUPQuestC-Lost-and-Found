@@ -138,7 +138,7 @@ const api = baseApi.injectEndpoints({
           body: data,
         };
       },
-      invalidatesTags: ["foundItems"],
+      invalidatesTags: ["foundItems", "myFoundItems"],
     }),
     getFoundItems: builder.query({
       query: (data: any) => {
@@ -207,7 +207,7 @@ const api = baseApi.injectEndpoints({
           body: data,
         };
       },
-      invalidatesTags: ["adminData"],
+      invalidatesTags: ["adminData", "myClaims"],
     }),
     // my claim
     myClaims: builder.query({
@@ -217,6 +217,7 @@ const api = baseApi.injectEndpoints({
           method: "GET",
         };
       },
+      providesTags: ["myClaims"],
     }),
     // admin stats
     adminStats: builder.query({

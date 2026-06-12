@@ -15,6 +15,7 @@ import Footers from "./components/footer/Footer";
 import { Outlet, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { ThemeProvider } from "./contexts/ThemeContext";
 
 const pageVariants = {
   initial: { opacity: 0, y: 10 },
@@ -33,24 +34,26 @@ function App() {
   }, [location.pathname]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-950 selection:bg-red-500/30 selection:text-red-200">
-      <Navbars />
-      <main className="flex-grow">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={location.pathname}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={pageTransition}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
-      </main>
-      <Footers />
-    </div>
+    <ThemeProvider>
+      <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 selection:bg-red-500/30 selection:text-red-200">
+        <Navbars />
+        <main className="flex-grow">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={pageTransition}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+        <Footers />
+      </div>
+    </ThemeProvider>
   );
 }
 

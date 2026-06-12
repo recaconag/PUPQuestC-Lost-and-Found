@@ -5,6 +5,42 @@ import prisma from "../../config/prisma";
 import AppError from "../../global/error";
 import { StatusCodes } from "http-status-codes";
 import { systemSettingsService } from "../systemSettings/systemSettings.service";
+import { updateItemEmbedding } from "../aiSearch/aiSearch.service";
+
+const toggleFoundStatus = async (id: string, requestingUser: JwtPayload) => {
+  const currentItem = await prisma.foundItem.findUnique({
+    where: { id },
+    select: { isClaimed: true, userId: true },
+  });
+
+  if (!currentItem) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Found item report not found.");
+  }
+
+  // Only the owner or an admin can toggle the found status
+  if (requestingUser.role !== "ADMIN" && currentItem.userId !== requestingUser.id) {
+    throw new AppError(
+      StatusCodes.FORBIDDEN,
+      "You are not authorized to update this item."
+    );
+  }
+
+  const result = await prisma.foundItem.update({
+    where: { id },
+    data: { isClaimed: !currentItem.isClaimed },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      category: true,
+    },
+  });
+  return result;
+};
 
 const createFoundItem = async (data: any, userId: string) => {
   const settings = await systemSettingsService.getSettings();
@@ -36,6 +72,14 @@ const createFoundItem = async (data: any, userId: string) => {
       category: true,
     },
   });
+
+  // Generate and save embedding asynchronously
+  updateItemEmbedding(
+    "foundItems",
+    result.id,
+    `${result.foundItemName}. ${result.description}`
+  ).catch((err) => console.error("Failed to update found item embedding on create:", err));
+
   return result;
 };
 
@@ -53,15 +97,12 @@ const getFoundItem = async (data: TFilter) => {
     isDeleted: false,
     isExpired: false,
     approvalStatus: "PUBLISHED",
+    isClaimed: false,
   };
 
-  // 1. Filter by category
   if (data.categoryId) {
     whereConditions.categoryId = data.categoryId;
   }
-
-  // 2. Hide claimed items from public list by default
-  whereConditions.isClaimed = false;
 
   if (foundItemName) {
     whereConditions.foundItemName = {
@@ -69,6 +110,7 @@ const getFoundItem = async (data: TFilter) => {
       mode: "insensitive",
     };
   }
+
   if (searchTerm) {
     whereConditions.OR = [
       { foundItemName: { contains: searchTerm, mode: "insensitive" } },
@@ -77,27 +119,37 @@ const getFoundItem = async (data: TFilter) => {
     ];
   }
 
-  const result = await prisma.foundItem.findMany({
-    where: whereConditions,
-    orderBy: {
-      [sortBy]: sortOrder,
-    },
-    skip: (Number(page) - 1) * Number(limit),
-    take: Number(limit),
-
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
+  const [result, total] = await Promise.all([
+    prisma.foundItem.findMany({
+      where: whereConditions,
+      orderBy: {
+        [sortBy]: sortOrder,
       },
-      category: true,
-    },
-  });
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit),
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        category: true,
+      },
+    }),
+    prisma.foundItem.count({ where: whereConditions }),
+  ]);
 
-  return result;
+  return {
+    data: result,
+    pagination: {
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPage: Math.ceil(total / Number(limit)),
+    },
+  };
 };
 const getSingleFoundItem = async (id: string) => {
   const result = await prisma.foundItem.findFirst({
@@ -120,7 +172,6 @@ const getSingleFoundItem = async (id: string) => {
   return result;
 };
 
-// get my lost item
 const getMyFoundItem = async (user: JwtPayload) => {
   const result = await prisma.foundItem.findMany({
     where: {
@@ -128,7 +179,9 @@ const getMyFoundItem = async (user: JwtPayload) => {
       isDeleted: false,
     },
     include: {
-      user: true,
+      user: {
+        select: { id: true, name: true, email: true },
+      },
       category: true,
     },
   });
@@ -136,7 +189,7 @@ const getMyFoundItem = async (user: JwtPayload) => {
 };
 
 const editMyFoundItem = async (data: any, user: JwtPayload) => {
-  const { id, ...payload } = data;
+  const { id, foundItemName, description, location, date, claimProcess, img } = data;
 
   const isExist = await prisma.foundItem.findFirst({
     where: { id, userId: user.id, isDeleted: false },
@@ -149,14 +202,27 @@ const editMyFoundItem = async (data: any, user: JwtPayload) => {
     );
   }
 
-  if (payload.date) {
-    payload.date = new Date(payload.date);
-  }
+  const updatePayload: any = {};
+  if (foundItemName !== undefined) updatePayload.foundItemName = foundItemName;
+  if (description !== undefined) updatePayload.description = description;
+  if (location !== undefined) updatePayload.location = location;
+  if (date !== undefined) updatePayload.date = new Date(date);
+  if (claimProcess !== undefined) updatePayload.claimProcess = claimProcess;
+  if (img !== undefined) updatePayload.img = img;
 
   const result = await prisma.foundItem.update({
     where: { id },
-    data: payload,
+    data: updatePayload,
   });
+
+  if (foundItemName !== undefined || description !== undefined) {
+    updateItemEmbedding(
+      "foundItems",
+      result.id,
+      `${result.foundItemName}. ${result.description}`
+    ).catch((err) => console.error("Failed to update found item embedding on edit:", err));
+  }
+
   return result;
 };
 const deleteMyFoundItem = async (id: string, user?: JwtPayload) => {

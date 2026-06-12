@@ -42,7 +42,6 @@ const EditFoundItemModal = ({ item, onClose, onSuccess }: Props) => {
   const {
     handleSubmit,
     register,
-    setValue,
     formState: { errors },
   } = useZodForm<typeof editFoundItemSchema, EditFoundItemValues>(editFoundItemSchema, {
     defaultValues: {

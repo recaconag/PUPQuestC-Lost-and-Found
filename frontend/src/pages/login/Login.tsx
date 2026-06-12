@@ -51,8 +51,8 @@ const Login = () => {
         return;
       }
       setUserLocalStorage(payload?.token);
-      if (payload?.role === "admin") {
-        navigate("/admin/dashboard", { replace: true });
+      if (payload?.role === "admin" || payload?.role === "ADMIN") {
+        navigate("/dashboard", { replace: true });
       } else {
         navigate(from, { replace: true });
       }
@@ -206,10 +206,8 @@ const Login = () => {
                 <div className="flex justify-end -mt-2">
                   <Link
                     to="/forgot-password"
-                    className="text-xs font-medium transition-colors duration-200"
+                    className="text-xs font-medium transition-colors duration-200 hover:text-yellow-500"
                     style={{ color: "#800000" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#eab308")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "#800000")}
                   >
                     Forgot Password?
                   </Link>

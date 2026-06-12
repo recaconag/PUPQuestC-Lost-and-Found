@@ -7,7 +7,7 @@ const OFFICIAL_PHONE = "282878204";
 
 const Footers = () => {
   return (
-    <footer className="relative pt-16 pb-10 bg-gray-950 border-t border-yellow-700/20 overflow-hidden">
+    <footer className="relative pt-16 pb-10 bg-gray-100 dark:bg-gray-950 border-t border-yellow-700/20 overflow-hidden">
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
@@ -22,7 +22,7 @@ const Footers = () => {
               </span>
             </Link>
 
-            <p className="mt-4 text-gray-300 leading-relaxed text-sm">
+            <p className="mt-4 text-gray-600 dark:text-gray-300 leading-relaxed text-sm">
               A web-based Lost and Found Management System for the Polytechnic University of the Philippines Quezon City Campus.
               Powered by AI to help the PUPQC community recover what matters most.
             </p>
@@ -30,10 +30,10 @@ const Footers = () => {
 
           {/* OFFICIAL CONTACT */}
           <div>
-            <h2 className="mb-5 text-sm font-semibold text-white uppercase tracking-wide">
+            <h2 className="mb-5 text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
               Official Contact
             </h2>
-            <ul className="space-y-3 text-gray-400 text-sm">
+            <ul className="space-y-3 text-gray-600 dark:text-gray-400 text-sm">
               <li>
                 <a
                   href={`mailto:${OFFICIAL_EMAIL}`}
@@ -68,10 +68,10 @@ const Footers = () => {
 
           {/* QUICK LINKS */}
           <div>
-            <h2 className="mb-5 text-sm font-semibold text-white uppercase tracking-wide">
+            <h2 className="mb-5 text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
               Quick Links
             </h2>
-            <ul className="space-y-3 text-gray-400 text-sm">
+            <ul className="space-y-3 text-gray-600 dark:text-gray-400 text-sm">
               <li>
                 <Link
                   to="/found-items"
@@ -93,10 +93,10 @@ const Footers = () => {
 
           {/* LEGAL */}
           <div>
-            <h2 className="mb-5 text-sm font-semibold text-white uppercase tracking-wide">
+            <h2 className="mb-5 text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wide">
               Legal
             </h2>
-            <ul className="space-y-3 text-gray-400 text-sm">
+            <ul className="space-y-3 text-gray-600 dark:text-gray-400 text-sm">
               <li>
                 <a
                   href="#"
@@ -127,37 +127,37 @@ const Footers = () => {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-8">
             <a
               href={`mailto:${OFFICIAL_EMAIL}`}
-              className="flex items-center gap-2 text-gray-400 hover:text-yellow-500 text-sm transition-all duration-200"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-yellow-500 text-sm transition-all duration-200"
             >
               <FaEnvelope className="w-3.5 h-3.5" />
               {OFFICIAL_EMAIL}
             </a>
 
-            <span className="hidden sm:block w-px h-4 bg-gray-700" />
+            <span className="hidden sm:block w-px h-4 bg-gray-300 dark:bg-gray-700" />
 
             <a
               href={`tel:${OFFICIAL_PHONE}`}
-              className="flex items-center gap-2 text-gray-400 hover:text-yellow-500 text-sm transition-all duration-200"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-yellow-500 text-sm transition-all duration-200"
             >
               <FaPhone className="w-3.5 h-3.5" />
               {OFFICIAL_PHONE}
             </a>
 
-            <span className="hidden sm:block w-px h-4 bg-gray-700" />
+            <span className="hidden sm:block w-px h-4 bg-gray-300 dark:bg-gray-700" />
 
             <a
               href={OFFICIAL_FB}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 text-gray-400 hover:text-yellow-500 text-sm transition-all duration-200"
+              className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-yellow-500 text-sm transition-all duration-200"
             >
               <FaFacebook className="w-3.5 h-3.5" />
               PUPQC Official Page
             </a>
           </div>
 
-          <span className="text-xs text-gray-500">
-            2026 PUPQuestC — PUPQC Lost and Found System.
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            &copy; 2026 PUPQuestC — PUPQC Lost and Found System.
           </span>
 
         </div>

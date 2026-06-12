@@ -1,29 +1,32 @@
-import { LostItem } from "@prisma/client";
+import { LostItem, Prisma } from "@prisma/client";
 import { JwtPayload } from "jsonwebtoken";
 import prisma from "../../config/prisma";
 import AppError from "../../global/error";
 import { StatusCodes } from "http-status-codes";
 import { systemSettingsService } from "../systemSettings/systemSettings.service";
+import { updateItemEmbedding } from "../aiSearch/aiSearch.service";
 
-const toggleFoundStatus = async (id: string) => {
-  // First get the current item to check its status
+const toggleFoundStatus = async (id: string, requestingUser: JwtPayload) => {
   const currentItem = await prisma.lostItem.findUnique({
     where: { id },
-    select: { isFound: true },
+    select: { isFound: true, userId: true },
   });
 
   if (!currentItem) {
     throw new AppError(StatusCodes.NOT_FOUND, "Lost item report not found.");
   }
 
-  // Toggle the found status
+  // Only the owner or an admin can toggle the found status
+  if (requestingUser.role !== "ADMIN" && currentItem.userId !== requestingUser.id) {
+    throw new AppError(
+      StatusCodes.FORBIDDEN,
+      "You are not authorized to update this item."
+    );
+  }
+
   const result = await prisma.lostItem.update({
-    where: {
-      id,
-    },
-    data: {
-      isFound: !currentItem.isFound,
-    },
+    where: { id },
+    data: { isFound: !currentItem.isFound },
     include: {
       user: {
         select: {
@@ -68,28 +71,67 @@ const createLostItem = async (userId: string, item: any) => {
       category: true,
     },
   });
+
+  // Generate and save embedding asynchronously
+  updateItemEmbedding(
+    "lostItems",
+    result.id,
+    `${result.lostItemName}. ${result.description}`
+  ).catch((err) => console.error("Failed to update lost item embedding on create:", err));
+
   return result;
 };
 
-const getLostItem = async () => {
-  const result = await prisma.lostItem.findMany({
-    where: {
-      isDeleted: false,
-      isExpired: false,
-      approvalStatus: "PUBLISHED",
-      isFound: false,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      user: {
-        select: { id: true, name: true, email: true, userImg: true },
+const getLostItem = async (query: Record<string, any> = {}) => {
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 12;
+  const searchTerm = (query.searchTerm as string) || "";
+  const categoryId = (query.categoryId as string) || "";
+
+  const whereConditions: Prisma.LostItemWhereInput = {
+    isDeleted: false,
+    isExpired: false,
+    approvalStatus: "PUBLISHED",
+    isFound: false,
+  };
+
+  if (categoryId) {
+    whereConditions.categoryId = categoryId;
+  }
+
+  if (searchTerm) {
+    whereConditions.OR = [
+      { lostItemName: { contains: searchTerm, mode: "insensitive" } },
+      { location: { contains: searchTerm, mode: "insensitive" } },
+      { description: { contains: searchTerm, mode: "insensitive" } },
+    ];
+  }
+
+  const [result, total] = await Promise.all([
+    prisma.lostItem.findMany({
+      where: whereConditions,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, userImg: true },
+        },
+        category: true,
       },
-      category: true,
+    }),
+    prisma.lostItem.count({ where: whereConditions }),
+  ]);
+
+  return {
+    data: result,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPage: Math.ceil(total / limit),
     },
-  });
-  return result;
+  };
 };
 
 // get single lost item
@@ -126,9 +168,8 @@ const getMyLostItem = async (user: JwtPayload) => {
 };
 
 const editMyLostItem = async (data: any, user: JwtPayload) => {
-  const { id, ...updateData } = data;
+  const { id, lostItemName, description, location, date, img } = data;
 
-  // Check ownership
   const isExist = await prisma.lostItem.findFirst({
     where: { id, userId: user.id, isDeleted: false },
   });
@@ -140,18 +181,30 @@ const editMyLostItem = async (data: any, user: JwtPayload) => {
     );
   }
 
-  if (updateData.date) {
-    updateData.date = new Date(updateData.date);
-  }
+  const updatePayload: any = {};
+  if (lostItemName !== undefined) updatePayload.lostItemName = lostItemName;
+  if (description !== undefined) updatePayload.description = description;
+  if (location !== undefined) updatePayload.location = location;
+  if (date !== undefined) updatePayload.date = new Date(date);
+  if (img !== undefined) updatePayload.img = img;
 
   const result = await prisma.lostItem.update({
     where: { id },
-    data: updateData,
+    data: updatePayload,
     include: {
       user: { select: { id: true, name: true, email: true, userImg: true } },
       category: true,
     },
   });
+
+  if (lostItemName !== undefined || description !== undefined) {
+    updateItemEmbedding(
+      "lostItems",
+      result.id,
+      `${result.lostItemName}. ${result.description}`
+    ).catch((err) => console.error("Failed to update lost item embedding on edit:", err));
+  }
+
   return result;
 };
 const deleteMyLostItem = async (id: string, user: JwtPayload) => {

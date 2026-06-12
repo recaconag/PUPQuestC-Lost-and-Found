@@ -1,5 +1,5 @@
 import { useRef, useState, DragEvent, ChangeEvent } from "react";
-import { FaCloudUploadAlt, FaCheckCircle, FaTimesCircle, FaImage } from "react-icons/fa";
+import { FaCloudUploadAlt, FaCheckCircle, FaTimesCircle, FaImage, FaPen, FaTrash } from "react-icons/fa";
 import { cx } from "./cx";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -145,11 +145,12 @@ export const ImageUpload = ({
             className="w-full h-full min-h-[200px] object-cover"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-3">
+          {/* Desktop Overlay: Visible on hover/focus on desktop screens that support hover */}
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 hidden [@media(hover:hover)]:md:flex items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="bg-yellow-600/90 hover:bg-yellow-500 text-gray-900 font-semibold text-xs px-3 py-1.5 rounded-lg transition-all duration-200"
+              className="bg-gradient-to-br from-yellow-600 to-yellow-700 hover:from-yellow-500 hover:to-yellow-600 text-gray-900 font-semibold text-xs px-3 py-1.5 rounded-lg transition-all duration-200 shadow-[0_2px_8px_rgba(202,138,4,0.30)] hover:shadow-[0_4px_16px_rgba(202,138,4,0.45)]"
               aria-label="Change image"
             >
               Change
@@ -157,12 +158,33 @@ export const ImageUpload = ({
             <button
               type="button"
               onClick={handleClear}
-              className="bg-red-700/90 hover:bg-red-600 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all duration-200"
+              className="bg-gradient-to-br from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition-all duration-200 shadow-[0_2px_8px_rgba(128,0,0,0.40)] hover:shadow-[0_4px_16px_rgba(128,0,0,0.55)]"
               aria-label="Remove image"
             >
               Remove
             </button>
           </div>
+
+          {/* Mobile Floating Action Buttons: Always visible on touchscreens / mobile devices, hidden on desktop hover-capable screens */}
+          <div className="absolute top-2 left-2 flex gap-2 [@media(hover:hover)]:md:hidden">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="bg-gray-950/85 hover:bg-gray-900 active:scale-95 text-yellow-500 p-2.5 rounded-xl border border-yellow-500/30 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.5)] backdrop-blur-md flex items-center justify-center"
+              aria-label="Change image"
+            >
+              <FaPen className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleClear}
+              className="bg-gray-950/85 hover:bg-red-950/40 active:scale-95 text-red-500 p-2.5 rounded-xl border border-red-500/30 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.5)] backdrop-blur-md flex items-center justify-center"
+              aria-label="Remove image"
+            >
+              <FaTrash className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           <div className="absolute top-2 right-2 bg-yellow-600 text-gray-900 rounded-full p-1 shadow">
             <FaCheckCircle className="w-4 h-4" />
           </div>

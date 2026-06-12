@@ -85,8 +85,11 @@ const Services = () => {
     );
   }
 
-  // Use server data if available, otherwise fallback to static data
-  const services: Service[] = servicesData?.data || defaultServices;
+  // Use server data if available and non-empty, otherwise fallback to static data
+  const services: Service[] =
+    servicesData?.data && servicesData.data.length > 0
+      ? servicesData.data
+      : defaultServices;
   return (
     <section
       id="services"

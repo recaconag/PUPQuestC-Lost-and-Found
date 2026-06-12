@@ -30,7 +30,7 @@ const Register = () => {
     register,
     watch,
     clearErrors,
-    formState: { errors, touchedFields },
+    formState: { errors, touchedFields, isSubmitted },
   } = useZodForm<typeof registerSchema, RegisterValues>(registerSchema, {
     defaultValues: { name: "", email: "", password: "", conpassword: "" },
   });
@@ -43,7 +43,8 @@ const Register = () => {
   const watchedConPassword = watch("conpassword") ?? "";
 
   const isValidWebmail = PUP_DOMAINS.some((d) => watchedEmail.endsWith(d));
-  const showDomainWarning = watchedEmail.length > 0 && !isValidWebmail;
+  const isEmailTouched = touchedFields.email || isSubmitted;
+  const showDomainWarning = isEmailTouched && watchedEmail.length > 0 && !isValidWebmail;
 
   const passwordChecks = {
     length: watchedPassword.length >= 8,
@@ -52,10 +53,13 @@ const Register = () => {
     special: /[^a-zA-Z0-9]/.test(watchedPassword),
   };
   const allPasswordReqsMet = Object.values(passwordChecks).every(Boolean);
+  
+  const isConPasswordTouched = touchedFields.conpassword || isSubmitted;
   const showConfirmMismatch =
-    watchedConPassword.length > 0 && watchedPassword !== watchedConPassword;
+    isConPasswordTouched && watchedConPassword.length > 0 && watchedPassword !== watchedConPassword;
+  
   const showTooWeak =
-    touchedFields.password === true && watchedPassword.length > 0 && !allPasswordReqsMet;
+    (touchedFields.password === true || isSubmitted) && watchedPassword.length > 0 && !allPasswordReqsMet;
 
   useEffect(() => {
     if (isValidWebmail) clearErrors("email");
@@ -122,7 +126,7 @@ const Register = () => {
             <div className="text-center mb-6">
               <div className="flex items-center justify-center gap-2 mb-1">
                 <FaGraduationCap className="text-yellow-500 w-6 h-6 flex-shrink-0" />
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-red-500 to-yellow-500 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-red-600 to-yellow-500 bg-clip-text text-transparent">
                   PUPQC Registration
                 </h1>
               </div>
@@ -195,10 +199,10 @@ const Register = () => {
                   type="button"
                   onClick={() => idInputRef.current?.click()}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-gray-800/50 backdrop-blur-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500/70 text-left mt-1.5 ${idError
-                      ? "border-red-600/70"
-                      : idFile
-                        ? "border-yellow-500/50 hover:border-yellow-500/70"
-                        : "border-gray-700/60 hover:border-yellow-500/50 hover:bg-gray-700/40"
+                    ? "border-red-600/70"
+                    : idFile
+                      ? "border-yellow-500/50 hover:border-yellow-500/70"
+                      : "border-gray-700/60 hover:border-yellow-500/50 hover:bg-gray-700/40"
                     }`}
                   aria-label="Upload Profile Picture"
                 >

@@ -46,7 +46,7 @@ export function Navbars() {
   return (
     <Navbar
       fluid
-      className="sticky top-0 z-50 glass-panel border-b border-yellow-600/10"
+      className="sticky top-0 z-50 glass-panel border-b border-yellow-600/10 bg-white/90 dark:bg-gray-900/90"
     >
       {/* BRAND */}
       <Link to="/" className="flex items-center">
@@ -62,7 +62,7 @@ export function Navbars() {
               <span className="text-xl font-bold gold-text">
                 PUPQuestC
               </span>
-              <p className="text-gray-400 text-xs">PUPQC Lost & Found</p>
+              <p className="text-gray-600 dark:text-gray-400 text-xs">PUPQC Lost & Found</p>
             </div>
           </div>
         </NavbarBrand>
@@ -76,10 +76,10 @@ export function Navbars() {
 
             {/* USER INFO */}
             <div className="hidden lg:block text-right">
-              <p className="text-white text-sm font-medium">
+              <p className="text-gray-900 dark:text-white text-sm font-medium">
                 {users?.name || "User"}
               </p>
-              <p className="text-gray-400 text-xs">
+              <p className="text-gray-600 dark:text-gray-400 text-xs">
                 {users?.role || "USER"}
               </p>
             </div>
@@ -109,10 +109,10 @@ export function Navbars() {
                   <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full"></div>
                 </div>
               }
-              className="bg-gray-900 border border-gray-700 shadow-lg"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-lg"
             >
               {/* HEADER */}
-              <DropdownHeader className="bg-gray-800/60">
+              <DropdownHeader className="bg-gray-100 dark:bg-gray-800/60">
                 <div className="flex items-center space-x-3 py-2">
                   <div className="w-8 h-8 bg-gradient-to-r from-red-700 to-red-900 rounded-full flex items-center justify-center">
                     <span className="text-white text-xs font-semibold">
@@ -120,10 +120,10 @@ export function Navbars() {
                     </span>
                   </div>
                   <div>
-                    <span className="block text-white text-sm font-medium">
+                    <span className="block text-gray-900 dark:text-white text-sm font-medium">
                       {users?.email || "User"}
                     </span>
-                    <span className="block text-gray-400 text-xs">
+                    <span className="block text-gray-600 dark:text-gray-400 text-xs">
                       {users?.role}
                     </span>
                   </div>
@@ -132,7 +132,7 @@ export function Navbars() {
 
               {/* ADMIN */}
               {users?.role === "ADMIN" && (
-                <DropdownItem className="hover:bg-gray-700 text-gray-300 hover:text-white">
+                <DropdownItem className="hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                   <Link to="/dashboard" className="flex items-center gap-2 w-full">
                     <FaTachometerAlt className="text-yellow-500" />
                     {t("nav.dashboard")}
@@ -141,40 +141,40 @@ export function Navbars() {
               )}
 
               {/* LINKS */}
-              <DropdownItem className="hover:bg-gray-700 text-gray-300 hover:text-white">
+              <DropdownItem className="hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                 <Link to="/dashboard/settings" className="flex items-center gap-2 w-full">
                   <FaCog className="text-yellow-500" />
                   {t("nav.settings")}
                 </Link>
               </DropdownItem>
 
-              <DropdownItem className="hover:bg-gray-700 text-gray-300 hover:text-white">
+              <DropdownItem className="hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                 <Link to="/dashboard/myLostItems" className="flex items-center gap-2 w-full">
                   <FaList className="text-yellow-500" />
                   {t("nav.myLostItems")}
                 </Link>
               </DropdownItem>
 
-              <DropdownItem className="hover:bg-gray-700 text-gray-300 hover:text-white">
+              <DropdownItem className="hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                 <Link to="/dashboard/myFoundItems" className="flex items-center gap-2 w-full">
                   <FaSearch className="text-yellow-500" />
                   {t("nav.myFoundItems")}
                 </Link>
               </DropdownItem>
 
-              <DropdownItem className="hover:bg-gray-700 text-gray-300 hover:text-white">
+              <DropdownItem className="hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
                 <Link to="/dashboard/myClaimRequest" className="flex items-center gap-2 w-full">
                   <FaUser className="text-yellow-500" />
                   {t("nav.myClaims")}
                 </Link>
               </DropdownItem>
 
-              <DropdownDivider className="border-gray-700" />
+              <DropdownDivider className="border-gray-200 dark:border-gray-700" />
 
               {/* SIGN OUT */}
               <DropdownItem
                 onClick={handleSignOut}
-                className="hover:bg-red-700 text-gray-300 hover:text-white"
+                className="hover:bg-red-100 dark:hover:bg-red-700 text-gray-700 dark:text-gray-300 hover:text-red-700 dark:hover:text-white"
               >
                 <div className="flex items-center gap-2 w-full">
                   <FaSignOutAlt className="text-red-400" />
@@ -218,7 +218,7 @@ export function Navbars() {
         <a
           href="/#aboutUs"
           className={[
-            "relative text-sm font-medium tracking-wide text-gray-300 hover:text-white",
+            "relative text-sm font-medium tracking-wide text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white",
             ui.motion,
             ui.focusRing,
             ui.linkUnderline,

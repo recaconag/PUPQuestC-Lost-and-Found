@@ -1,34 +1,36 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
 }
 
 model User {
-  id                  String        @id @default(uuid())
   name                String        @default("")
+  id                  String        @id @default(uuid())
   email               String        @unique
-  idPicture           String        @default("")
   activated           Boolean       @default(false)
   password            String
   role                userRole      @default(USER)
-  accountStatus       accountStatus @default(PENDING)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
-  foundItems          FoundItem[]
-  claims              Claim[]
   userImg             String        @default("")
   isDeleted           Boolean       @default(false)
   deletedAt           DateTime?
+  accountStatus       accountStatus @default(PENDING)
+  idPicture           String        @default("")
   otpCode             String?
   otpExpiry           DateTime?
-  lostItems           LostItem[]
   failedLoginAttempts Int           @default(0)
   lockedUntil         DateTime?
   lastPasswordChange  DateTime?
+  claims              Claim[]
+  foundItems          FoundItem[]
+  lostItems           LostItem[]
 
   @@map("users")
 }
@@ -39,6 +41,8 @@ model SystemSettings {
   sessionTimeoutMinutes  Int      @default(30)
   maxLoginAttempts       Int      @default(5)
   enable2FA              Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
   itemExpiryDays         Int      @default(30)
   maxImageSizeMb         Int      @default(5)
   autoDeleteExpiredItems Boolean  @default(true)
@@ -50,8 +54,6 @@ model SystemSettings {
   smtpSecure             Boolean  @default(false)
   smtpFromName           String   @default("PUPQuestC Support")
   smtpFromEmail          String   @default("")
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
 
   @@map("systemSettings")
 }
@@ -68,77 +70,71 @@ model ItemCategory {
 }
 
 model FoundItem {
-  id             String        @id @default(uuid())
+  id             String       @id @default(uuid())
   userId         String
-  img            String        @default("")
-  user           User          @relation(fields: [userId], references: [id])
+  img            String       @default("")
   categoryId     String
-  category       ItemCategory? @relation(fields: [categoryId], references: [id])
   foundItemName  String
   description    String
   location       String
   date           DateTime
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  claims         Claim[]
-  claimProcess   String        @default("")
-  isClaimed      Boolean       @default(false)
-  isDeleted      Boolean       @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  claimProcess   String       @default("")
+  isClaimed      Boolean      @default(false)
+  isDeleted      Boolean      @default(false)
   deletedAt      DateTime?
-  approvalStatus String        @default("PUBLISHED")
-  isExpired      Boolean       @default(false)
+  approvalStatus String       @default("PUBLISHED")
+  isExpired      Boolean      @default(false)
   expiredAt      DateTime?
   aiTags         String?
-
-  // New field added for AI Semantic text vector extraction matching modules
-  embedding      String?       @db.Text
+  embedding      Unsupported("vector(384)")?
+  claims         Claim[]
+  category       ItemCategory @relation(fields: [categoryId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
 
   @@map("foundItems")
 }
 
 model LostItem {
-  id             String        @id @default(uuid())
+  id             String       @id @default(uuid())
   userId         String
   lostItemName   String
   categoryId     String
-  img            String        @default("")
+  img            String       @default("")
   description    String
   location       String
   date           DateTime
-  category       ItemCategory? @relation(fields: [categoryId], references: [id])
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  isFound        Boolean       @default(false)
-  isDeleted      Boolean       @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  isFound        Boolean      @default(false)
+  isDeleted      Boolean      @default(false)
   deletedAt      DateTime?
-  approvalStatus String        @default("PUBLISHED")
-  isExpired      Boolean       @default(false)
+  approvalStatus String       @default("PUBLISHED")
+  isExpired      Boolean      @default(false)
   expiredAt      DateTime?
   aiTags         String?
-  user           User          @relation(fields: [userId], references: [id])
-
-  // New field added for AI Semantic text vector extraction matching modules
-  embedding      String?       @db.Text
+  embedding      Unsupported("vector(384)")?
+  category       ItemCategory @relation(fields: [categoryId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
 
   @@map("lostItems")
 }
 
 model Claim {
-  id                    String    @id @default(uuid())
-  userId                String
-  foundItemId           String
-  isDeleted             Boolean   @default(false)
-  deletedAt             DateTime?
-  status                status    @default(PENDING)
+  id                     String    @id @default(uuid())
+  userId                 String
+  foundItemId            String
+  isDeleted              Boolean   @default(false)
+  deletedAt              DateTime?
+  status                 status    @default(PENDING)
   distinguishingFeatures String?
-  lostDate              DateTime
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  user                  User      @relation(fields: [userId], references: [id])
-  foundItem             FoundItem @relation(fields: [foundItemId], references: [id])
-
-  // New fields added for the node-qrcode verification scanning module
-  qrCodeToken           String?   @unique
+  lostDate               DateTime
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  qrCodeToken            String?   @unique
+  foundItem              FoundItem @relation(fields: [foundItemId], references: [id])
+  user                   User      @relation(fields: [userId], references: [id])
 
   @@map("claims")
 }
@@ -147,7 +143,7 @@ enum status {
   PENDING
   APPROVED
   REJECTED
-  CLAIMED    // New status variant added for post-QR code scanner validation
+  CLAIMED
 }
 
 enum userRole {

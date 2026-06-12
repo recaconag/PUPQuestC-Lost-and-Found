@@ -7,7 +7,7 @@ export function useZodForm<TSchema extends ZodTypeAny, TValues extends FieldValu
   options?: Omit<UseFormProps<TValues>, "resolver">
 ) {
   return useForm<TValues>({
-    mode: "onTouched",
+    mode: "onBlur",
     ...options,
     resolver: zodResolver(schema) as any,
   });

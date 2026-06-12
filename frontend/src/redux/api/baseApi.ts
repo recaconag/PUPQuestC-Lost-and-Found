@@ -72,6 +72,7 @@ export const baseApi = createApi({
   tagTypes: [
     "mylostItems",
     "myFoundItems",
+    "myClaims",
     "users",
     "adminData",
     "services",

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useGetLostItemsQuery } from "../../redux/api/api";
 import { Link } from "react-router-dom";
 import { FaSearch, FaFilter, FaCalendarAlt, FaMapMarkerAlt } from "react-icons/fa";
@@ -8,13 +8,23 @@ import { formatDate } from "../../utils/formatDate";
 
 const LostItemsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortBy, setSortBy] = useState("lostItemName");
-  const [sortOrder, setSortOrder] = useState("asc");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
   const [limit] = useState(12);
 
+  // Debounce: wait 500ms after the user stops typing before firing the query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const { data: lostItems, isLoading } = useGetLostItemsQuery({
-    searchTerm,
+    searchTerm: debouncedSearch,
     page: currentPage,
     limit,
     sortBy,
@@ -43,6 +53,7 @@ const LostItemsPage = () => {
 
   const clearSearch = () => {
     setSearchTerm("");
+    setDebouncedSearch("");
     setCurrentPage(1);
   };
 
@@ -176,9 +187,8 @@ const LostItemsPage = () => {
         <div className="mb-6">
           <p className="text-center font-medium text-gray-400">
             {searchTerm
-              ? `Search results for "${searchTerm}" - ${lostItems?.data?.length || 0
-              } items found`
-              : `Showing ${lostItems?.data?.length || 0} lost items`}
+              ? `Search results for "${searchTerm}" - ${lostItems?.meta?.total || 0} items found`
+              : `Showing ${lostItems?.meta?.total || 0} lost items`}
           </p>
         </div>
       </div>

@@ -6,6 +6,8 @@ import {
   FaSearch,
   FaCheck,
   FaTimes,
+  FaCheckSquare,
+  FaSquare,
 } from "react-icons/fa";
 import {
   useDeleteMyLostItemMutation,
@@ -53,6 +55,9 @@ const LostItemsManagement = () => {
   });
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
 
   // Debounce search term
   useEffect(() => {
@@ -135,13 +140,79 @@ const LostItemsManagement = () => {
     setIsDeleteLoading(false);
   };
 
-  const handleMarkAsFound = async (id: string, currentStatus: boolean) => {
+  const handleMarkAsFound = async (id: string) => {
     setMarkingAsFoundId(id);
     try {
       await markAsFound({ id }).unwrap();
     } catch (error) {
     } finally {
       setMarkingAsFoundId(null);
+    }
+  };
+
+  const handleSelectItem = (itemId: string) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const items = lostItemsData?.data || [];
+    if (selectedItems.size === items.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(items.map((item: LostItem) => item.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) return;
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedItems.size} item(s)?`)) {
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      const promises = Array.from(selectedItems).map(id => deleteMyLostItem(id).unwrap());
+      await Promise.all(promises);
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error("[LostItemsManagement] Bulk delete failed:", error);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    const items = lostItemsData?.data || [];
+    const pendingItems = items.filter((item: LostItem) =>
+      item.approvalStatus === "PENDING" && selectedItems.has(item.id)
+    );
+
+    if (pendingItems.length === 0) {
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to approve ${pendingItems.length} pending item(s)?`)) {
+      return;
+    }
+
+    setIsBulkApproving(true);
+    try {
+      const promises = pendingItems.map((item: LostItem) => approveLostItem(item.id).unwrap());
+      await Promise.all(promises);
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error("[LostItemsManagement] Bulk approve failed:", error);
+    } finally {
+      setIsBulkApproving(false);
     }
   };
 
@@ -231,11 +302,11 @@ const LostItemsManagement = () => {
             </div>
           </div>
 
-          <div className="flex gap-4">
+          <div className="grid grid-cols-2 gap-4 w-full sm:flex sm:w-auto">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200"
+              className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 w-full"
             >
               <option value="ALL">All Status</option>
               <option value="ACTIVE">Active</option>
@@ -246,7 +317,7 @@ const LostItemsManagement = () => {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 cursor-pointer"
+              className="px-4 py-2 bg-gray-800/50 border border-red-900/40 hover:border-red-800/60 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/70 focus:border-yellow-500/60 transition-all duration-200 cursor-pointer w-full"
             >
               <option value="ALL">All Categories</option>
               {categoriesData?.data?.map((cat: any) => (
@@ -260,82 +331,141 @@ const LostItemsManagement = () => {
       </div>
 
       {/* Items Table */}
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="glass-card rounded-xl overflow-hidden max-w-full">
+        {/* Bulk Actions Bar */}
+        {selectedItems.size > 0 && (
+          <div className="bg-gray-800/50 border-b border-yellow-700/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span className="text-sm text-gray-300">
+              {selectedItems.size} item{selectedItems.size !== 1 ? 's' : ''} selected
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleBulkApprove}
+                disabled={isBulkApproving || isBulkDeleting}
+                className="inline-flex items-center px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaCheck className="mr-1" />
+                Approve Selected
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting || isBulkApproving}
+                className="inline-flex items-center px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaTrash className="mr-1" />
+                Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedItems(new Set())}
+                className="inline-flex items-center px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="w-full overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/70 border-b border-yellow-700/15">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                  <button
+                    onClick={handleSelectAll}
+                    className="flex items-center gap-2 hover:text-yellow-400 transition-colors"
+                    title={selectedItems.size === (lostItemsData?.data?.length || 0) ? "Deselect all" : "Select all"}
+                  >
+                    {selectedItems.size === (lostItemsData?.data?.length || 0) && lostItemsData?.data?.length > 0 ? (
+                      <FaCheckSquare className="w-4 h-4" />
+                    ) : (
+                      <FaSquare className="w-4 h-4" />
+                    )}
+                  </button>
+                </th>
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Item
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden sm:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Category
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden md:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Location
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden lg:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Date Lost
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Status
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden sm:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Reported By
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {filteredItems.map((item: LostItem) => (
+              {items.map((item: LostItem) => (
                 <tr
                   key={item.id}
                   className="hover:bg-yellow-900/10 transition-colors"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
+                    <button
+                      onClick={() => handleSelectItem(item.id)}
+                      className="hover:text-yellow-400 transition-colors"
+                      title={selectedItems.has(item.id) ? "Deselect" : "Select"}
+                    >
+                      {selectedItems.has(item.id) ? (
+                        <FaCheckSquare className="w-4 h-4" />
+                      ) : (
+                        <FaSquare className="w-4 h-4" />
+                      )}
+                    </button>
+                  </td>
+                  <td className="px-4 sm:px-6 py-4">
                     <div>
-                      <div className="font-medium text-white">
+                      <div className="font-medium text-white text-sm sm:text-base">
                         {item.lostItemName}
                       </div>
-                      <div className="text-sm text-gray-400 truncate max-w-xs">
+                      <div className="text-xs sm:text-sm text-gray-400 truncate max-w-[150px] sm:max-w-xs">
                         {item.description}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-300">
+                  <td className="hidden sm:table-cell px-6 py-4 text-gray-300">
                     {item.category?.name || "N/A"}
                   </td>
-                  <td className="px-6 py-4 text-gray-300">{item.location}</td>
-                  <td className="px-6 py-4 text-gray-300">
+                  <td className="hidden md:table-cell px-6 py-4 text-gray-300">{item.location}</td>
+                  <td className="hidden lg:table-cell px-6 py-4 text-gray-300">
                     {formatDate(item.date) || "No Date Reported"}
                   </td>
-                  <td className="px-6 py-4">{getStatusBadge(item)}</td>
-                  <td className="px-6 py-4 text-gray-300">
+                  <td className="px-4 sm:px-6 py-4">{getStatusBadge(item)}</td>
+                  <td className="hidden sm:table-cell px-6 py-4 text-gray-300">
                     {item.user?.name || item.user?.email || "N/A"}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-2">
+                  <td className="px-4 sm:px-6 py-4">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
                       {item.approvalStatus === "PENDING" && (
                         <button
                           onClick={() => approveLostItem(item.id)}
                           title="Approve & Publish"
-                          className="p-2 text-green-400 hover:bg-green-600 hover:text-white rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 text-green-400 hover:bg-green-600 hover:text-white rounded-lg transition-colors"
                         >
-                          <FaCheck />
+                          <FaCheck className="w-4 h-4" />
                         </button>
                       )}
                       <button
                         onClick={() => handleEdit(item)}
-                        className="p-2 text-yellow-500 hover:bg-yellow-500 hover:text-white rounded-lg transition-colors"
+                        title="Edit this item"
+                        className="p-1.5 sm:p-2 text-yellow-500 hover:bg-yellow-500 hover:text-white rounded-lg transition-colors"
                       >
-                        <FaEdit />
+                        <FaEdit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleMarkAsFound(item.id, item.isFound)}
+                        onClick={() => handleMarkAsFound(item.id)}
                         disabled={markingAsFoundId === item.id}
-                        className={`p-2 rounded-lg transition-colors disabled:cursor-not-allowed flex items-center justify-center ${item.isFound
+                        className={`p-1.5 sm:p-2 rounded-lg transition-colors disabled:cursor-not-allowed flex items-center justify-center ${item.isFound
                           ? "text-red-500 hover:bg-red-500 hover:text-white disabled:bg-red-400"
                           : "text-green-500 hover:bg-green-500 hover:text-white disabled:bg-green-400"
                           }`}

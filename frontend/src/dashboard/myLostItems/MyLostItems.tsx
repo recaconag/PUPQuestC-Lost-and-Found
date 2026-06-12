@@ -36,6 +36,8 @@ const MyLostItems = () => {
   const [itemToDelete, setItemToDelete]: any = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const editModalRef = useFocusTrap(isOpen);
+
   const handleDeleteClick = (item: any) => {
     setItemToDelete(item);
     setIsDeleteModalOpen(true);
@@ -372,7 +374,7 @@ const MyLostItems = () => {
 
       {/* Modal */}
       <Modal show={isOpen} size="md" popup={true} onClose={closeModal}>
-        <div ref={useFocusTrap(true)} className="glass-card rounded-xl">
+        <div ref={editModalRef} className="glass-card rounded-xl">
           <ModalHeader className="border-b border-gray-700">
             <h3 className="text-xl font-medium text-white">Edit Lost Item</h3>
           </ModalHeader>

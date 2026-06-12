@@ -23,6 +23,8 @@ const ClaimsManagement = () => {
   const [claimToReject, setClaimToReject] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [claimForDetail, setClaimForDetail] = useState<any>(null);
 
   // Debounce search term
   useEffect(() => {
@@ -37,15 +39,37 @@ const ClaimsManagement = () => {
   const [updateClaimStatus, { isLoading: isStatusLoading }] = useUpdateClaimStatusMutation();
   const [generateClaimQR, { isLoading: isQrGenerating }] = useGenerateClaimQRMutation();
 
-  const claims = allClaims?.data || [];
+  const allFetchedClaims = allClaims?.data || [];
+  // Apply client-side status filter
+  const claims = statusFilter === "ALL"
+    ? allFetchedClaims
+    : allFetchedClaims.filter((claim: any) => claim.status === statusFilter);
   const pagination = allClaims?.meta;
 
-  const handleStatusChange = (claimId: string, status: string) => {
-    const claim = claims.find((claim: any) => claim.id === claimId);
-    setSelectedClaim(claim);
-    setNewStatus(status);
-    setStatusError(null);
-    setIsStatusModalOpen(true);
+  const handleBulkApprove = async () => {
+    const pendingClaims = claims.filter(
+      (claim: any) => claim.status === "PENDING"
+    );
+    if (pendingClaims.length === 0) {
+      return;
+    }
+
+    if (
+      window.confirm(
+        `Are you sure you want to approve ${pendingClaims.length} pending claims?`
+      )
+    ) {
+      try {
+        const promises = pendingClaims.map((claim: any) =>
+          updateClaimStatus({
+            claimId: claim.id,
+            status: "APPROVED",
+          }).unwrap()
+        );
+        await Promise.all(promises);
+      } catch {
+      }
+    }
   };
 
   const handleStatusConfirm = async () => {
@@ -60,10 +84,7 @@ const ClaimsManagement = () => {
       setSelectedClaim(null);
       setNewStatus("");
     } catch (err: any) {
-      console.error("[ClaimsManagement] updateClaimStatus failed:", err);
-      setStatusError(
-        err?.data?.message ?? "Failed to update status. Please try again."
-      );
+      setStatusError(err?.data?.message ?? "Failed to update status. Please try again.");
     }
   };
 
@@ -82,10 +103,7 @@ const ClaimsManagement = () => {
         setIsQrModalOpen(true);
       }
     } catch (err: any) {
-      console.error("[ClaimsManagement] generateClaimQR failed:", err);
-      setStatusError(
-        err?.data?.message ?? "Failed to generate QR code. Please try again."
-      );
+      setStatusError(err?.data?.message ?? "Failed to generate QR code. Please try again.");
     }
   };
 
@@ -98,15 +116,9 @@ const ClaimsManagement = () => {
     if (!claimToReject) return;
     setIsRejectDialogOpen(false);
     try {
-      await updateClaimStatus({
-        claimId: claimToReject,
-        status: "REJECTED",
-      }).unwrap();
+      await updateClaimStatus({ claimId: claimToReject, status: "REJECTED" }).unwrap();
     } catch (err: any) {
-      console.error("[ClaimsManagement] rejectClaim failed:", err);
-      setStatusError(
-        err?.data?.message ?? "Failed to reject claim. Please try again."
-      );
+      setStatusError(err?.data?.message ?? "Failed to reject claim. Please try again.");
     } finally {
       setClaimToReject(null);
     }
@@ -115,34 +127,6 @@ const ClaimsManagement = () => {
   const handleRejectCancel = () => {
     setIsRejectDialogOpen(false);
     setClaimToReject(null);
-  };
-
-  const handleBulkApprove = async () => {
-    const pendingClaims = filteredClaims.filter(
-      (claim: any) => claim.status === "PENDING"
-    );
-    if (pendingClaims.length === 0) {
-      return;
-    }
-
-    if (
-      window.confirm(
-        `Are you sure you want to approve ${pendingClaims.length} pending claims?`
-      )
-    ) {
-      try {
-        // Approve all pending claims
-        const promises = pendingClaims.map((claim: any) =>
-          updateClaimStatus({
-            claimId: claim.id,
-            status: "APPROVED",
-          }).unwrap()
-        );
-
-        await Promise.all(promises);
-      } catch {
-      }
-    }
   };
 
   const getStatusColor = (status: string) => {
@@ -288,6 +272,7 @@ const ClaimsManagement = () => {
               <option value="PENDING">Pending</option>
               <option value="APPROVED">Approved</option>
               <option value="REJECTED">Rejected</option>
+              <option value="CLAIMED">Claimed</option>
             </select>
           </div>
         </div>
@@ -299,109 +284,138 @@ const ClaimsManagement = () => {
           <table className="w-full">
             <thead className="bg-gray-900/70 border-b border-yellow-700/15">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Found Item
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden sm:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Category
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden md:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Proof Details
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Claimant
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="hidden lg:table-cell px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Lost Date
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Status
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                <th className="px-4 sm:px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {filteredClaims.map((claim: any) => (
+              {claims.map((claim: any) => (
                 <tr
                   key={claim.id}
                   className="hover:bg-yellow-900/10 transition-colors"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <div className="flex items-center space-x-3">
                       <img
                         src={claim.foundItem?.img || "/default-item.png"}
                         alt={claim.foundItem?.foundItemName}
-                        className="w-12 h-12 rounded-lg object-cover"
+                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => {
+                          setClaimForDetail(claim);
+                          setDetailModalOpen(true);
+                        }}
                         loading="lazy"
                       />
                       <div>
-                        <div className="font-medium text-white">
+                        <div 
+                          className="font-medium text-white text-sm sm:text-base cursor-pointer hover:text-yellow-500 transition-colors"
+                          onClick={() => {
+                            setClaimForDetail(claim);
+                            setDetailModalOpen(true);
+                          }}
+                        >
                           {claim.foundItem?.foundItemName}
                         </div>
-                        <div className="text-sm text-gray-400 truncate max-w-xs">
+                        <div className="text-xs sm:text-sm text-gray-400 truncate max-w-[150px] sm:max-w-xs">
                           {claim.foundItem?.description}
                         </div>
+                        <button 
+                          onClick={() => {
+                            setClaimForDetail(claim);
+                            setDetailModalOpen(true);
+                          }}
+                          className="text-xs text-yellow-500 hover:text-yellow-400 underline mt-1 block md:hidden font-medium"
+                        >
+                          View Proof Details
+                        </button>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="hidden sm:table-cell px-6 py-4">
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                       {claim.foundItem?.category?.name}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td 
+                    className="hidden md:table-cell px-6 py-4 cursor-pointer hover:bg-yellow-900/20 transition-all rounded-lg"
+                    onClick={() => {
+                      setClaimForDetail(claim);
+                      setDetailModalOpen(true);
+                    }}
+                    title="Click to view full proof details"
+                  >
                     <div className="max-w-xs">
-                      <div className="text-white text-sm font-medium mb-1">
+                      <div className="text-white text-sm font-medium mb-1 flex items-center gap-1.5 hover:text-yellow-500 transition-colors">
                         Proof Details:
+                        <FaEye className="text-xs text-gray-400" />
                       </div>
                       <div className="text-gray-400 text-sm line-clamp-2">
                         {claim.distinguishingFeatures || "No proof provided"}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <div>
-                      <div className="text-white">
+                      <div className="text-white text-sm">
                         {claim.user?.name || claim.user?.email}
                       </div>
-                      <div className="text-sm text-gray-400">
+                      <div className="text-xs sm:text-sm text-gray-400">
                         {claim.user?.email}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-300">
+                  <td className="hidden lg:table-cell px-6 py-4 text-gray-300">
                     {formatDate(claim.lostDate)}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
+                      className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
                         claim.status
                       )}`}
                     >
                       {claim.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
+                  <td className="px-4 sm:px-6 py-4">
+                    <div className="flex gap-1 sm:gap-2 flex-wrap">
                       {claim.status === "PENDING" && (
                         <>
                           <button
                             onClick={() => handleApproveClaim(claim.id)}
                             disabled={isQrGenerating}
-                            className="inline-flex items-center px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center px-2 sm:px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Approve claim and generate QR code"
                           >
                             <FaCheck className="mr-1" />
-                            Approve
+                            <span className="hidden sm:inline">Approve</span>
                           </button>
                           <button
                             onClick={() => handleRejectClaim(claim.id)}
                             disabled={isStatusLoading}
-                            className="inline-flex items-center px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center px-2 sm:px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Reject this claim"
                           >
                             <FaTimes className="mr-1" />
-                            Reject
+                            <span className="hidden sm:inline">Reject</span>
                           </button>
                         </>
                       )}
@@ -409,10 +423,11 @@ const ClaimsManagement = () => {
                         <button
                           onClick={() => handleApproveClaim(claim.id)}
                           disabled={isQrGenerating}
-                          className="inline-flex items-center px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center px-2 sm:px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Regenerate QR code for this claim"
                         >
                           <FaQrcode className="mr-1" />
-                          Regenerate QR
+                          <span className="hidden sm:inline">Regenerate QR</span>
                         </button>
                       )}
                     </div>
@@ -657,6 +672,82 @@ const ClaimsManagement = () => {
         variant="danger"
         isLoading={isStatusLoading}
       />
+
+      {/* Proof Details Modal */}
+      {detailModalOpen && claimForDetail && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="glass-card rounded-xl p-6 w-full max-w-lg mx-4 border border-yellow-700/20 shadow-[0_0_20px_rgba(234,179,8,0.15)]">
+            <div>
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-bold bg-gradient-to-r from-red-500 to-yellow-500 bg-clip-text text-transparent">
+                  Claim Distinguishing Features
+                </h2>
+                <button
+                  onClick={() => {
+                    setDetailModalOpen(false);
+                    setClaimForDetail(null);
+                  }}
+                  className="text-gray-400 hover:text-white transition-colors p-1"
+                >
+                  <FaTimes className="text-lg" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3 bg-gray-900/60 p-3 rounded-lg border border-gray-800">
+                  <img
+                    src={claimForDetail.foundItem?.img || "/default-item.png"}
+                    alt={claimForDetail.foundItem?.foundItemName}
+                    className="w-12 h-12 rounded-lg object-cover"
+                  />
+                  <div>
+                    <h3 className="font-semibold text-white text-sm sm:text-base">
+                      {claimForDetail.foundItem?.foundItemName}
+                    </h3>
+                    <p className="text-xs text-gray-400">
+                      Category: {claimForDetail.foundItem?.category?.name}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-xs sm:text-sm bg-gray-900/30 p-3 rounded-lg">
+                  <div>
+                    <p className="text-gray-500 font-medium">Claimant</p>
+                    <p className="text-white font-medium">{claimForDetail.user?.name || claimForDetail.user?.email}</p>
+                    <p className="text-xs text-gray-400 truncate max-w-xs">{claimForDetail.user?.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 font-medium">Lost Date</p>
+                    <p className="text-white font-medium">{formatDate(claimForDetail.lostDate)}</p>
+                    <p className="text-xs text-gray-400">Claim Status: {claimForDetail.status}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-yellow-500/80 mb-2">
+                    Submitted Distinguishing Features / Proof Details:
+                  </h4>
+                  <div className="bg-gray-950/60 border border-yellow-700/10 rounded-lg p-4 text-white text-sm whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed shadow-inner">
+                    {claimForDetail.distinguishingFeatures || "No distinguishing features or proof details were provided for this claim request."}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => {
+                    setDetailModalOpen(false);
+                    setClaimForDetail(null);
+                  }}
+                  className="px-5 py-2 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white text-sm font-medium rounded-lg transition-all shadow-md border border-red-600/50"
+                >
+                  Close Details
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

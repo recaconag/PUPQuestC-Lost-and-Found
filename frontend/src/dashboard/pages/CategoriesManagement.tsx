@@ -7,6 +7,8 @@ import {
   FaSave,
   FaTimes,
   FaBoxOpen,
+  FaCheckSquare,
+  FaSquare,
 } from "react-icons/fa";
 import { Modal, ModalBody, ModalHeader } from "flowbite-react";
 import {
@@ -41,6 +43,8 @@ const CategoriesManagement = () => {
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
     null
   );
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const addForm = useZodForm<typeof categoryNameSchema, CategoryNameValues>(
     categoryNameSchema,
@@ -116,6 +120,46 @@ const CategoriesManagement = () => {
   const handleCancelDelete = () => {
     setShowDeleteModal(false);
     setCategoryToDelete(null);
+  };
+
+  const handleSelectItem = (categoryId: string) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const categories = categoriesData?.data || [];
+    if (selectedItems.size === categories.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(categories.map((cat: Category) => cat.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedItems.size === 0) return;
+
+    if (!window.confirm(`Are you sure you want to delete ${selectedItems.size} categor(y/ies)?`)) {
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      const promises = Array.from(selectedItems).map(id => deleteCategory(id).unwrap());
+      await Promise.all(promises);
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error("[CategoriesManagement] Bulk delete failed:", error);
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -269,10 +313,47 @@ const CategoriesManagement = () => {
 
       {/* Categories Table */}
       <div className="glass-card rounded-xl overflow-hidden">
+        {/* Bulk Actions Bar */}
+        {selectedItems.size > 0 && (
+          <div className="bg-gray-800/50 border-b border-yellow-700/20 px-4 py-3 flex items-center justify-between">
+            <span className="text-sm text-gray-300">
+              {selectedItems.size} categor{selectedItems.size !== 1 ? 'ies' : 'y'} selected
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting}
+                className="inline-flex items-center px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FaTrash className="mr-1" />
+                Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedItems(new Set())}
+                className="inline-flex items-center px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                Clear Selection
+              </button>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/70 border-b border-yellow-700/15">
               <tr>
+                <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
+                  <button
+                    onClick={handleSelectAll}
+                    className="flex items-center gap-2 hover:text-yellow-400 transition-colors"
+                    title={selectedItems.size === (categoriesData?.data?.length || 0) ? "Deselect all" : "Select all"}
+                  >
+                    {selectedItems.size === (categoriesData?.data?.length || 0) && categoriesData?.data?.length > 0 ? (
+                      <FaCheckSquare className="w-4 h-4" />
+                    ) : (
+                      <FaSquare className="w-4 h-4" />
+                    )}
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-left text-xs font-medium text-yellow-500/70 uppercase tracking-wide">
                   Category Name
                 </th>
@@ -293,6 +374,19 @@ const CategoriesManagement = () => {
                   key={category.id}
                   className="hover:bg-yellow-900/10 transition-colors"
                 >
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => handleSelectItem(category.id)}
+                      className="hover:text-yellow-400 transition-colors"
+                      title={selectedItems.has(category.id) ? "Deselect" : "Select"}
+                    >
+                      {selectedItems.has(category.id) ? (
+                        <FaCheckSquare className="w-4 h-4" />
+                      ) : (
+                        <FaSquare className="w-4 h-4" />
+                      )}
+                    </button>
+                  </td>
                   <td className="px-6 py-4">
                     {editingId === category.id ? (
                       <div className="space-y-1">
@@ -335,6 +429,7 @@ const CategoriesManagement = () => {
                             disabled={isUpdating}
                             className="p-2 text-green-500 hover:bg-green-500 hover:text-white rounded-lg transition-colors disabled:opacity-50"
                             aria-label="Save category name"
+                            title="Save category name"
                           >
                             <FaSave aria-hidden />
                           </button>
@@ -344,6 +439,7 @@ const CategoriesManagement = () => {
                             disabled={isUpdating}
                             className="p-2 text-gray-500 hover:bg-gray-500 hover:text-white rounded-lg transition-colors"
                             aria-label="Cancel editing"
+                            title="Cancel editing"
                           >
                             <FaTimes aria-hidden />
                           </button>
@@ -355,6 +451,7 @@ const CategoriesManagement = () => {
                             onClick={() => handleEdit(category)}
                             className="p-2 text-yellow-500 hover:bg-yellow-500 hover:text-white rounded-lg transition-colors"
                             aria-label={`Edit ${category.name}`}
+                            title={`Edit ${category.name}`}
                           >
                             <FaEdit aria-hidden />
                           </button>
@@ -363,6 +460,7 @@ const CategoriesManagement = () => {
                             onClick={() => handleDeleteClick(category)}
                             className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors"
                             aria-label={`Delete ${category.name}`}
+                            title={`Delete ${category.name}`}
                           >
                             <FaTrash aria-hidden />
                           </button>

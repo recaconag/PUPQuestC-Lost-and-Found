@@ -81,6 +81,66 @@ router.get("/services", (_req, res) => {
 router.get("/faqs", (_req, res) => {
   res.json({ success: true, data: [] });
 });
+
+// Recent activity feed for the admin dashboard
+router.get("/recent-activity", auth("USER", "ADMIN"), async (_req, res, next) => {
+  try {
+    const [recentClaims, recentFound, recentLost] = await Promise.all([
+      (await import("../config/prisma")).default.claim.findMany({
+        where: { isDeleted: false },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        include: {
+          user: { select: { id: true, name: true } },
+          foundItem: { select: { id: true, foundItemName: true } },
+        },
+      }),
+      (await import("../config/prisma")).default.foundItem.findMany({
+        where: { isDeleted: false },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        include: { user: { select: { id: true, name: true } } },
+      }),
+      (await import("../config/prisma")).default.lostItem.findMany({
+        where: { isDeleted: false },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        include: { user: { select: { id: true, name: true } } },
+      }),
+    ]);
+
+    const activities = [
+      ...recentClaims.map((c: any) => ({
+        type: "claim",
+        id: c.id,
+        label: `${c.user?.name || "Someone"} filed a claim for "${c.foundItem?.foundItemName || "an item"}"`,
+        status: c.status,
+        createdAt: c.createdAt,
+      })),
+      ...recentFound.map((f: any) => ({
+        type: "found",
+        id: f.id,
+        label: `${f.user?.name || "Someone"} reported a found item: "${f.foundItemName}"`,
+        status: f.approvalStatus,
+        createdAt: f.createdAt,
+      })),
+      ...recentLost.map((l: any) => ({
+        type: "lost",
+        id: l.id,
+        label: `${l.user?.name || "Someone"} reported a lost item: "${l.lostItemName}"`,
+        status: l.approvalStatus,
+        createdAt: l.createdAt,
+      })),
+    ]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10);
+
+    res.json({ success: true, data: activities });
+  } catch (err) {
+    next(err);
+  }
+});
+
 ////////////////////////////////////////////////// user //////////////////////////////////////////////
 // user registration (accepts multipart/form-data for optional profile photo)
 router.post(
@@ -241,8 +301,14 @@ router.put(
 // =========================================================================
 router.post(
   "/claims/generate-qr/:claimId",
-  auth("ADMIN"),
+  auth("USER", "ADMIN"),
   claimsController.generateClaimQRCodeImage,
+);
+
+router.post(
+  "/claims/verify-qr",
+  auth("ADMIN"),
+  claimsController.verifyClaimQRCodeScanner,
 );
 
 router.post(
@@ -345,12 +411,6 @@ router.post(
   aiSearchController.aiSearch,
 );
 
-// AI search — image query (authenticated; base64 image in request body)
-router.post(
-  "/ai-search/image",
-  auth("USER", "ADMIN"),
-  aiSearchController.aiImageSearch,
-);
 
 // System settings (admin only)
 router.get(

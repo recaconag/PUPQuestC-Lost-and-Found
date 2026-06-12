@@ -174,10 +174,12 @@ const Dashboard = () => {
                       }`}
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium">
-                      {activity.title}
+                    <p className="text-white text-sm font-medium truncate" title={activity.label}>
+                      {activity.label}
                     </p>
-                    <p className="text-gray-400 text-xs">{activity.time}</p>
+                    <p className="text-gray-400 text-xs">
+                      {new Date(activity.createdAt).toLocaleDateString()} at {new Date(activity.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
                   <span
                     className={`px-2 py-1 rounded-full text-xs font-medium ${activity.status === "new"

@@ -92,7 +92,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     },
     {
       title: t("sidebar.myLostItems"),
-      icon: <FaSearch />,
+      icon: <FaExclamationTriangle />,
       path: "/dashboard/myLostItems",
       badge: null,
       adminOnly: false,
@@ -106,7 +106,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     },
     {
       title: t("sidebar.myClaims"),
-      icon: <FaBoxOpen />,
+      icon: <FaClipboardList />,
       path: "/dashboard/myClaimRequest",
       badge: null,
       adminOnly: false,
@@ -124,6 +124,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   );
 
   const isActive = (path: string) => {
+    if (path === "/dashboard") {
+      return location.pathname === "/dashboard";
+    }
     return (
       location.pathname === path || location.pathname.startsWith(path + "/")
     );
@@ -140,7 +143,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950 overflow-x-hidden">
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div
@@ -165,7 +168,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               />
               <div>
                 <h1 className="font-bold text-lg gold-text">PUPQuestC</h1>
-                <p className="text-gray-400 text-xs">Admin Dashboard</p>
+                <p className="text-gray-400 text-xs">
+                  {user?.role === "ADMIN" ? "Admin Dashboard" : "Dashboard"}
+                </p>
               </div>
             </div>
           )}
@@ -288,7 +293,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
       {/* Main Content */}
       <div
-        className={`transition-all duration-200 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
+        className={`w-full max-w-full lg:w-auto lg:max-w-none min-w-0 overflow-x-hidden transition-all duration-200 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-64"
           }`}
       >
         {/* Top Navbar */}

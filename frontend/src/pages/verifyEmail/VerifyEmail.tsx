@@ -118,7 +118,7 @@ const VerifyEmail = () => {
     return (
       <section className="min-h-screen flex items-center justify-center bg-gray-950 p-4">
         <div className="w-full max-w-md text-center">
-          <div className="glass-card rounded-2xl p-10">
+          <div className="glass-card rounded-2xl p-8 md:p-10">
             <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.4)] ring-2 ring-green-500/30">
               <FaCheckCircle className="w-10 h-10 text-white" />
             </div>
@@ -199,7 +199,7 @@ const VerifyEmail = () => {
               <button
                 type="submit"
                 disabled={isVerifying || digits.join("").length < 6}
-                className="w-full py-3 bg-gradient-to-r from-red-700 to-red-800 hover:from-red-600 hover:to-red-700 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 border border-red-600/50 shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-500/70"
+                className="w-full py-3 bg-gradient-to-br from-red-700 to-red-900 hover:from-red-600 hover:to-red-800 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all duration-200 border border-red-600/50 shadow-[0_2px_8px_rgba(128,0,0,0.40)] hover:shadow-[0_4px_16px_rgba(128,0,0,0.55)] focus:outline-none focus:ring-2 focus:ring-yellow-500/70"
               >
                 {isVerifying ? (
                   <span className="flex items-center justify-center gap-2">

@@ -41,6 +41,9 @@ const SingleLostItem = () => {
   const [markFoundSuccess, setMarkFoundSuccess] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
+  const confirmModalRef = useFocusTrap(isConfirmOpen);
+  const contactModalRef = useFocusTrap(isContactModalOpen);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -58,7 +61,7 @@ const SingleLostItem = () => {
     return (
       <div className="min-h-screen bg-gray-950 py-8">
         <div className="text-center max-w-md mx-auto px-4">
-          <div className="glass-card rounded-2xl p-8">
+          <div className="glass-card rounded-2xl p-8 md:p-10">
             <div className="text-red-600 text-6xl mb-4">😞</div>
             <h2 className="text-2xl font-bold gold-text mb-4">Item Not Found</h2>
             <p className="text-gray-300 mb-6">
@@ -343,7 +346,7 @@ const SingleLostItem = () => {
               exit={{ opacity: 0, scale: 0.88 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="glass-card rounded-2xl w-full max-w-sm overflow-hidden"
-              ref={useFocusTrap(true)}
+              ref={confirmModalRef}
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700/60 bg-gradient-to-r from-green-900/30 to-gray-800/60">
@@ -417,7 +420,7 @@ const SingleLostItem = () => {
               exit={{ opacity: 0, scale: 0.88 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="glass-card rounded-2xl w-full max-w-sm overflow-hidden"
-              ref={useFocusTrap(true)}
+              ref={contactModalRef}
             >
               {/* Modal Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700/60 bg-gradient-to-r from-red-900/30 to-gray-800/60">
