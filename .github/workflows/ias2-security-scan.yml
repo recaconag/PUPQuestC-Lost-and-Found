@@ -1,6 +1,8 @@
 name: IAS2 Security Scan
 
 on:
+  push:
+    branches: [ias2-security-scan]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -31,6 +33,38 @@ jobs:
           output: codeql-results
           upload: never
 
+      - name: Summarize CodeQL results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, glob, os
+          files = glob.glob('codeql-results/**/*.sarif', recursive=True)
+          print('=== SAST: GitHub CodeQL Result Summary ===')
+          if not files:
+              print('No SARIF file was produced.')
+              raise SystemExit(0)
+          total = 0
+          for path in files:
+              with open(path, encoding='utf-8') as f:
+                  data = json.load(f)
+              for run in data.get('runs', []):
+                  results = run.get('results', [])
+                  total += len(results)
+                  for r in results[:20]:
+                      rule = r.get('ruleId', 'unknown-rule')
+                      level = r.get('level', 'warning')
+                      msg = r.get('message', {}).get('text', '').replace('\n', ' ')
+                      loc = ''
+                      locs = r.get('locations') or []
+                      if locs:
+                          pl = locs[0].get('physicalLocation', {})
+                          uri = pl.get('artifactLocation', {}).get('uri', '')
+                          line = pl.get('region', {}).get('startLine', '')
+                          loc = f'{uri}:{line}'
+                      print(f'[{level.upper()}] {rule} {loc} - {msg}')
+          print(f'TOTAL_CODEQL_RESULTS={total}')
+          PY
+
       - name: Upload CodeQL SARIF
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,6 +85,11 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Show npm version
+        run: |
+          node --version
+          npm --version
+
       - name: Audit frontend dependencies
         working-directory: frontend
         run: |
@@ -62,6 +101,14 @@ jobs:
         run: |
           npm audit --package-lock-only --json > ../server-npm-audit.json || true
           npm audit --package-lock-only > ../server-npm-audit.txt || true
+
+      - name: Print SCA result summary
+        if: always()
+        run: |
+          echo '=== SCA: npm audit - FRONTEND ==='
+          cat frontend-npm-audit.txt || true
+          echo '=== SCA: npm audit - BACKEND ==='
+          cat server-npm-audit.txt || true
 
       - name: Upload SCA reports
         if: always()
@@ -99,7 +146,7 @@ jobs:
           nohup npm run dev -- --host 0.0.0.0 > ../vite.log 2>&1 &
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:5173 >/dev/null; then
-              echo "PUPQuestC frontend is ready for DAST."
+              echo 'PUPQuestC frontend is ready for DAST.'
               exit 0
             fi
             sleep 2
@@ -113,6 +160,12 @@ jobs:
             -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py -t http://127.0.0.1:5173 \
             -J zap-report.json -r zap-report.html -w zap-report.md -I || true
+
+      - name: Print ZAP result summary
+        if: always()
+        run: |
+          echo '=== DAST: OWASP ZAP Baseline ==='
+          cat zap-report.md || true
 
       - name: Upload ZAP reports
         if: always()
