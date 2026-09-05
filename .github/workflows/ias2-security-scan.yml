@@ -1,0 +1,180 @@
+name: IAS2 Security Scan
+
+on:
+  push:
+    branches: [ias2-security-scan]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  sast-codeql:
+    name: SAST - GitHub CodeQL
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Analyze source code
+        id: codeql
+        uses: github/codeql-action/analyze@v4
+        with:
+          output: codeql-results
+          upload: never
+
+      - name: Summarize CodeQL results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, glob, os
+          files = glob.glob('codeql-results/**/*.sarif', recursive=True)
+          print('=== SAST: GitHub CodeQL Result Summary ===')
+          if not files:
+              print('No SARIF file was produced.')
+              raise SystemExit(0)
+          total = 0
+          for path in files:
+              with open(path, encoding='utf-8') as f:
+                  data = json.load(f)
+              for run in data.get('runs', []):
+                  results = run.get('results', [])
+                  total += len(results)
+                  for r in results[:20]:
+                      rule = r.get('ruleId', 'unknown-rule')
+                      level = r.get('level', 'warning')
+                      msg = r.get('message', {}).get('text', '').replace('\n', ' ')
+                      loc = ''
+                      locs = r.get('locations') or []
+                      if locs:
+                          pl = locs[0].get('physicalLocation', {})
+                          uri = pl.get('artifactLocation', {}).get('uri', '')
+                          line = pl.get('region', {}).get('startLine', '')
+                          loc = f'{uri}:{line}'
+                      print(f'[{level.upper()}] {rule} {loc} - {msg}')
+          print(f'TOTAL_CODEQL_RESULTS={total}')
+          PY
+
+      - name: Upload CodeQL SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif
+          path: codeql-results/
+          if-no-files-found: warn
+
+  sca-npm-audit:
+    name: SCA - npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Show npm version
+        run: |
+          node --version
+          npm --version
+
+      - name: Audit frontend dependencies
+        working-directory: frontend
+        run: |
+          npm audit --package-lock-only --json > ../frontend-npm-audit.json || true
+          npm audit --package-lock-only > ../frontend-npm-audit.txt || true
+
+      - name: Audit backend dependencies
+        working-directory: server
+        run: |
+          npm audit --package-lock-only --json > ../server-npm-audit.json || true
+          npm audit --package-lock-only > ../server-npm-audit.txt || true
+
+      - name: Print SCA result summary
+        if: always()
+        run: |
+          echo '=== SCA: npm audit - FRONTEND ==='
+          cat frontend-npm-audit.txt || true
+          echo '=== SCA: npm audit - BACKEND ==='
+          cat server-npm-audit.txt || true
+
+      - name: Upload SCA reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-reports
+          path: |
+            frontend-npm-audit.json
+            frontend-npm-audit.txt
+            server-npm-audit.json
+            server-npm-audit.txt
+          if-no-files-found: warn
+
+  dast-zap:
+    name: DAST - OWASP ZAP Baseline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Start frontend application
+        working-directory: frontend
+        run: |
+          nohup npm run dev -- --host 0.0.0.0 > ../vite.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:5173 >/dev/null; then
+              echo 'PUPQuestC frontend is ready for DAST.'
+              exit 0
+            fi
+            sleep 2
+          done
+          cat ../vite.log
+          exit 1
+
+      - name: Run OWASP ZAP baseline scan
+        run: |
+          docker run --network host -v "${{ github.workspace }}:/zap/wrk/:rw" \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://127.0.0.1:5173 \
+            -J zap-report.json -r zap-report.html -w zap-report.md -I || true
+
+      - name: Print ZAP result summary
+        if: always()
+        run: |
+          echo '=== DAST: OWASP ZAP Baseline ==='
+          cat zap-report.md || true
+
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports
+          path: |
+            zap-report.json
+            zap-report.html
+            zap-report.md
+            vite.log
+          if-no-files-found: warn
